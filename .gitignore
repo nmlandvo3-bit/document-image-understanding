@@ -1,0 +1,37 @@
+# Python virtual environments
+.venv/
+.venv-paddleocr/
+.venv-paddleocr-gpu/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local datasets and input documents
+data/
+
+# Generated processing results
+results/
+
+# Runtime logs
+logs/
+
+# Downloaded external resources
+external/
+
+# Downloaded OCR models
+.paddlex/
+.paddleocr/
+*.pdmodel
+*.pdiparams
+*.pdparams
+
+# Local editor settings
+.vscode/
+
+# Temporary files
+*.tmp
+*.log
+Thumbs.db
+.DS_Store
