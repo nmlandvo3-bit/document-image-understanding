@@ -1656,6 +1656,11 @@ class DocumentUnderstandingApp:
             f"Answer mode: {result.get('answer_mode', '-')}",
             f"Evidence validation: {validation.get('valid', False)}",
             f"Answer consistency: {result.get('answer_consistency', {}).get('reason', '-')}",
+            f"Expected answer type: {result.get('answer_type', '-')}",
+            f"Confidence score: {result.get('confidence_score') if result.get('confidence_score') is not None else '-'}",
+            f"Confidence level: {result.get('confidence_level', '-')}",
+            f"Confidence basis: {result.get('confidence_reason', '-')}",
+            "Confidence note: heuristic score, not a calibrated probability",
             f"Uncertainty: {result.get('uncertainty')}",
             "",
             "Model-cited evidence:",
@@ -1701,8 +1706,14 @@ class DocumentUnderstandingApp:
         )
 
         if result.get("grounded", False):
+            confidence_level = result.get("confidence_level")
+            confidence_suffix = (
+                f" | confidence: {confidence_level}"
+                if confidence_level not in (None, "-", "not_applicable", "not_available")
+                else ""
+            )
             self.qa_status_var.set(
-                f"Answer complete and grounded ({elapsed:.2f}s)"
+                f"Answer complete and grounded{confidence_suffix} ({elapsed:.2f}s)"
             )
         else:
             self.qa_status_var.set(

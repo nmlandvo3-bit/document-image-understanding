@@ -25,6 +25,10 @@ from pathlib import Path
 from groq import Groq
 
 from services.layout_aware_ocr_retrieval import build_raw_ocr_packet
+from services.answer_type_confidence import (
+    infer_answer_type,
+    score_candidate,
+)
 
 from experiments.experiment_41_generic_cross_document_retrieval import (
     PIC1_PATH,
@@ -702,6 +706,123 @@ class DocumentQAService:
                 return True, "literal_single_region"
         return False, "answer_not_found_in_cited_ocr"
 
+    @staticmethod
+    def _empty_confidence(question, reason, score=0.0):
+        """Typed metadata for unanswered, rejected, or locally blocked results."""
+        return {
+            "answer_type": infer_answer_type(question),
+            "confidence_score": round(float(score), 3),
+            "confidence_level": (
+                "high" if score >= 0.90
+                else "medium" if score >= 0.70
+                else "low"
+            ),
+            "confidence_reason": reason,
+            "confidence_is_calibrated_probability": False,
+        }
+
+    @staticmethod
+    def _raw_ocr_confidence_metadata(packet, model_result):
+        """Score the spatial value actually cited and supported by the answer."""
+        question = str(packet.get("question", ""))
+        expected_type = infer_answer_type(question)
+
+        if packet.get("answer_mode") != "raw_ocr_spatial_candidates":
+            return {
+                "answer_type": expected_type,
+                "confidence_score": None,
+                "confidence_level": "not_applicable",
+                "confidence_reason": (
+                    "confidence_scoring_currently_applies_to_raw_ocr_spatial_answers"
+                ),
+                "confidence_is_calibrated_probability": False,
+            }
+
+        cited = set(model_result.get("evidence_item_ids", []))
+        answer = str(model_result.get("answer", "")).strip().casefold()
+        indexed = {
+            item["evidence_item_id"]: item
+            for item in packet.get("evidence", [])
+        }
+
+        relations = packet.get("spatial_candidates", [])
+
+        grouped = {}
+        for relation in relations:
+            grouped.setdefault(
+                (
+                    relation.get("document_id"),
+                    relation.get("label_region_id"),
+                ),
+                [],
+            ).append(relation)
+
+        for relation in relations:
+            doc_id = relation.get("document_id")
+            candidate_region_id = relation.get("candidate_region_id")
+
+            if doc_id is None or candidate_region_id is None:
+                continue
+
+            value_id = f"{doc_id}:ocr_region:{candidate_region_id}"
+
+            if value_id not in cited:
+                continue
+
+            item = indexed.get(value_id)
+            if item is None:
+                continue
+
+            content = item.get("content", {})
+            raw = str(content.get("text", "")).strip()
+
+            if not raw:
+                continue
+
+            raw_folded = raw.casefold()
+            if raw_folded not in answer and answer not in raw_folded:
+                if re.fullmatch(r"\d+(?:\.\d+)?", raw):
+                    if not re.search(
+                        r"(?<![\d.])" + re.escape(raw) + r"(?![\d.])",
+                        answer,
+                    ):
+                        continue
+                else:
+                    continue
+
+            group_key = (
+                relation.get("document_id"),
+                relation.get("label_region_id"),
+            )
+            candidate_count = max(1, len(grouped.get(group_key, [])))
+
+            result = score_candidate(
+                question=question,
+                candidate=raw,
+                relation=relation.get("spatial_direction") or "unknown",
+                ocr_confidence=content.get("confidence"),
+                ambiguous=False,
+                candidate_count=candidate_count,
+            )
+
+            return {
+                "answer_type": result.expected_type,
+                "confidence_score": result.score,
+                "confidence_level": result.level,
+                "confidence_reason": result.reason,
+                "confidence_is_calibrated_probability": False,
+            }
+
+        # Grounded raw OCR with no scoreable cited spatial value is intentionally
+        # not assigned a made-up numeric confidence.
+        return {
+            "answer_type": expected_type,
+            "confidence_score": None,
+            "confidence_level": "not_available",
+            "confidence_reason": "no_scoreable_cited_spatial_value",
+            "confidence_is_calibrated_probability": False,
+        }
+
     def answer(
         self,
         question,
@@ -766,6 +887,11 @@ class DocumentQAService:
                 "uncertainty": "ambiguous_document_evidence",
                 "ambiguities": ambiguities,
                 "usage": {},
+                **self._empty_confidence(
+                    question,
+                    "ambiguous_document_evidence",
+                    score=0.49,
+                ),
             }
 
         if not packet[
@@ -799,6 +925,11 @@ class DocumentQAService:
                     "insufficient_document_evidence"
                 ),
                 "usage": {},
+                **self._empty_confidence(
+                    question,
+                    "insufficient_document_evidence",
+                    score=0.0,
+                ),
             }
 
         llm_result = (
@@ -830,6 +961,11 @@ class DocumentQAService:
                 "evidence_validation": validation,
                 "uncertainty": "answer_evidence_mismatch",
                 "usage": llm_result["usage"],
+                **self._empty_confidence(
+                    question,
+                    "invalid_evidence_ids",
+                    score=0.0,
+                ),
             }
 
         evidence_by_id = {
@@ -884,6 +1020,18 @@ class DocumentQAService:
             packet, used_evidence, grounded
         )
 
+        if grounded:
+            confidence_metadata = self._raw_ocr_confidence_metadata(
+                packet,
+                llm_result,
+            )
+        else:
+            confidence_metadata = self._empty_confidence(
+                question,
+                uncertainty or "answer_not_grounded",
+                score=0.0,
+            )
+
         return {
             "question": question,
             "answer": answer_text,
@@ -912,6 +1060,7 @@ class DocumentQAService:
                     "usage"
                 ]
             ),
+            **confidence_metadata,
         }
 
 
