@@ -87,6 +87,9 @@ class DocumentUnderstandingApp:
 
         self.current_summary: dict | None = None
 
+        # Generated locally after successful single-document OCR.
+        self.single_qa_json_path: Path | None = None
+
         self.single_running = False
 
         self.preview_photo = None
@@ -109,6 +112,20 @@ class DocumentUnderstandingApp:
         self.batch_output_dir: Path | None = None
 
         self.batch_running = False
+
+
+        # =====================================================================
+        # DOCUMENT Q&A
+        # =====================================================================
+
+        self.qa_service = None
+        self.qa_service_lock = threading.Lock()
+        self.qa_running = False
+        # None means the validated pic1 + pic13 demo corpus.
+        # Otherwise Q&A loads just one explicitly selected unified JSON.
+        self.qa_document_path: Path | None = None
+        self.qa_request_counter = 0
+        self.qa_active_request = None
 
 
         # =====================================================================
@@ -333,6 +350,10 @@ class DocumentUnderstandingApp:
             self.mode_tabs
         )
 
+        self.qa_mode = ttk.Frame(
+            self.mode_tabs
+        )
+
         self.mode_tabs.add(
             self.single_mode,
             text="Single Document",
@@ -343,9 +364,16 @@ class DocumentUnderstandingApp:
             text="Batch Processing",
         )
 
+        self.mode_tabs.add(
+            self.qa_mode,
+            text="Document Q&A",
+        )
+
         self.create_single_mode()
 
         self.create_batch_mode()
+
+        self.create_document_qa_mode()
 
 
     # =========================================================================
@@ -399,6 +427,14 @@ class DocumentUnderstandingApp:
             side="left",
             padx=4,
         )
+
+        self.single_qa_button = ttk.Button(
+            toolbar,
+            text="Ask About This Scan",
+            command=self.select_current_scan_for_qa,
+            state="disabled",
+        )
+        self.single_qa_button.pack(side="left", padx=4)
 
         self.clear_button = ttk.Button(
             toolbar,
@@ -1201,6 +1237,529 @@ class DocumentUnderstandingApp:
 
 
     # =========================================================================
+    # DOCUMENT Q&A
+    # =========================================================================
+
+    def create_document_qa_mode(
+        self,
+    ) -> None:
+        container = ttk.Frame(
+            self.qa_mode,
+            padding=15,
+        )
+        container.pack(
+            fill="both",
+            expand=True,
+        )
+
+        intro = ttk.LabelFrame(
+            container,
+            text="Grounded Document Question Answering",
+            padding=12,
+        )
+        intro.pack(
+            fill="x",
+            pady=(0, 10),
+        )
+
+        ttk.Label(
+            intro,
+            text=(
+                "Ask questions about a selected unified document. "
+                "Only evidence selected by retrieval is sent to Groq when you ask."
+            ),
+            wraplength=1000,
+            justify="left",
+        ).pack(anchor="w")
+
+        ttk.Label(
+            intro,
+            text=(
+                "Use the demo corpus, load a unified JSON, or choose "
+                "Ask About This Scan after local processing. New scans use raw OCR "
+                "regions, not verified form fields or table structures."
+            ),
+            wraplength=1000,
+            justify="left",
+        ).pack(
+            anchor="w",
+            pady=(8, 0),
+        )
+
+        scope_frame = ttk.LabelFrame(
+            container,
+            text="Document scope",
+            padding=10,
+        )
+        scope_frame.pack(fill="x", pady=(0, 10))
+
+        self.qa_scope_var = tk.StringVar(
+            value="Validated demo corpus: pic1 + pic13"
+        )
+        ttk.Label(
+            scope_frame,
+            textvariable=self.qa_scope_var,
+            wraplength=950,
+            justify="left",
+        ).pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        self.qa_demo_button = ttk.Button(
+            scope_frame,
+            text="Use demo corpus",
+            command=self.use_qa_demo_corpus,
+        )
+        self.qa_demo_button.pack(side="right", padx=4)
+
+        self.qa_load_button = ttk.Button(
+            scope_frame,
+            text="Load unified JSON",
+            command=self.choose_qa_document,
+        )
+        self.qa_load_button.pack(side="right", padx=4)
+
+        question_frame = ttk.LabelFrame(
+            container,
+            text="Question",
+            padding=12,
+        )
+        question_frame.pack(
+            fill="x",
+            pady=(0, 10),
+        )
+
+        self.qa_question_var = tk.StringVar()
+        self.qa_question_entry = ttk.Entry(
+            question_frame,
+            textvariable=self.qa_question_var,
+        )
+        self.qa_question_entry.pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 8),
+        )
+        self.qa_question_entry.bind(
+            "<Return>",
+            self.start_document_question,
+        )
+        self.qa_question_entry.bind("<KeyRelease>", self.qa_question_edited, add="+")
+
+        self.qa_ask_button = ttk.Button(
+            question_frame,
+            text="Ask Document",
+            command=self.start_document_question,
+        )
+        self.qa_ask_button.pack(
+            side="left",
+            padx=4,
+        )
+
+        self.qa_clear_button = ttk.Button(
+            question_frame,
+            text="Clear",
+            command=self.clear_document_qa,
+        )
+        self.qa_clear_button.pack(
+            side="left",
+            padx=4,
+        )
+
+        status_frame = ttk.Frame(container)
+        status_frame.pack(
+            fill="x",
+            pady=(0, 10),
+        )
+
+        self.qa_status_var = tk.StringVar(
+            value=(
+                "Ready. GROQ_API_KEY will be checked when the first "
+                "question is asked."
+            )
+        )
+        ttk.Label(
+            status_frame,
+            textvariable=self.qa_status_var,
+        ).pack(
+            side="left",
+            fill="x",
+            expand=True,
+        )
+
+        self.qa_progress = ttk.Progressbar(
+            status_frame,
+            mode="indeterminate",
+            length=180,
+        )
+        self.qa_progress.pack(side="right")
+
+        panes = ttk.Panedwindow(
+            container,
+            orient="vertical",
+        )
+        panes.pack(
+            fill="both",
+            expand=True,
+        )
+
+        answer_frame = ttk.LabelFrame(
+            panes,
+            text="Answer",
+            padding=10,
+        )
+        evidence_frame = ttk.LabelFrame(
+            panes,
+            text="Grounding / Evidence",
+            padding=10,
+        )
+        panes.add(answer_frame, weight=2)
+        panes.add(evidence_frame, weight=1)
+
+        self.qa_answer_text = tk.Text(
+            answer_frame,
+            wrap="word",
+            font=("Segoe UI", 11),
+            height=10,
+        )
+        answer_scroll = ttk.Scrollbar(
+            answer_frame,
+            orient="vertical",
+            command=self.qa_answer_text.yview,
+        )
+        self.qa_answer_text.configure(
+            yscrollcommand=answer_scroll.set
+        )
+        self.qa_answer_text.pack(
+            side="left",
+            fill="both",
+            expand=True,
+        )
+        answer_scroll.pack(
+            side="right",
+            fill="y",
+        )
+
+        self.qa_evidence_text = tk.Text(
+            evidence_frame,
+            wrap="word",
+            font=("Consolas", 10),
+            height=8,
+        )
+        evidence_scroll = ttk.Scrollbar(
+            evidence_frame,
+            orient="vertical",
+            command=self.qa_evidence_text.yview,
+        )
+        self.qa_evidence_text.configure(
+            yscrollcommand=evidence_scroll.set
+        )
+        self.qa_evidence_text.pack(
+            side="left",
+            fill="both",
+            expand=True,
+        )
+        evidence_scroll.pack(
+            side="right",
+            fill="y",
+        )
+
+
+    def get_qa_service(self, document_path=None):
+        """Lazy service initialization for the selected Q&A document scope."""
+        with self.qa_service_lock:
+            if self.qa_service is None:
+                from services.document_qa_service import DocumentQAService
+
+                paths = None if document_path is None else [document_path]
+                self.qa_service = DocumentQAService(document_paths=paths)
+            return self.qa_service
+
+    def reset_qa_service(self):
+        """Invalidate a previously loaded corpus when the user changes scope."""
+        with self.qa_service_lock:
+            self.qa_service = None
+
+    def choose_qa_document(self):
+        if self.qa_running:
+            return
+        filename = filedialog.askopenfilename(
+            title="Select a unified document JSON",
+            filetypes=[("JSON files", "*.json")],
+        )
+        if not filename:
+            return
+        path = Path(filename).resolve()
+        try:
+            # Check schema and semantic content without requiring an API key.
+            from services.document_qa_service import DocumentQAService
+            # Validate with the existing corpus builder but do not instantiate
+            # an API client merely to change document scope.
+            from experiments.experiment_41_generic_cross_document_retrieval import (
+                load_json, build_search_corpus,
+            )
+            document = load_json(path)
+            required = {
+                "document_id", "schema_version", "document_type",
+                "records", "fields", "controls", "free_text", "evidence",
+            }
+            if not isinstance(document, dict) or required - document.keys():
+                raise ValueError("Choose a unified-document JSON, not a raw OCR JSON.")
+            if not all(isinstance(document[key], list) for key in (
+                "records", "fields", "controls", "free_text", "evidence"
+            )):
+                raise ValueError("Unified document semantic fields must be lists.")
+            if not any(document[key] for key in (
+                "records", "fields", "controls", "free_text"
+            )) or not build_search_corpus([document]):
+                raise ValueError("This JSON has no searchable structured items.")
+        except Exception as error:
+            messagebox.showerror("Invalid Q&A document", str(error))
+            return
+
+        self.qa_document_path = path
+        self.reset_qa_service()
+        self.qa_scope_var.set(
+            f"Selected unified document: {document['document_id']} ({path.name})"
+        )
+        self.clear_document_qa()
+        self.qa_status_var.set("Document scope changed. Ready to ask.")
+
+    def use_qa_demo_corpus(self):
+        if self.qa_running:
+            return
+        self.qa_document_path = None
+        self.reset_qa_service()
+        self.qa_scope_var.set("Validated demo corpus: pic1 + pic13")
+        self.clear_document_qa()
+        self.qa_status_var.set("Demo corpus selected. Ready to ask.")
+
+    def qa_question_edited(self, event=None) -> None:
+        """A newly typed question must not display a previous question's answer."""
+        if self.qa_running:
+            return
+        self.qa_answer_text.delete("1.0", tk.END)
+        self.qa_evidence_text.delete("1.0", tk.END)
+        self.qa_status_var.set("Question changed. Click Ask Document for a new answer.")
+
+    def start_document_question(
+        self,
+        event=None,
+    ) -> None:
+        if self.qa_running:
+            return
+
+        question = self.qa_question_var.get().strip()
+        if not question:
+            messagebox.showinfo(
+                "Document Q&A",
+                "Please enter a question first.",
+            )
+            return
+
+        self.qa_running = True
+        self.qa_request_counter += 1
+        request_id = self.qa_request_counter
+        self.qa_active_request = (request_id, question, self.qa_document_path)
+        self.qa_ask_button.configure(state="disabled")
+        self.qa_clear_button.configure(state="disabled")
+        self.qa_load_button.configure(state="disabled")
+        self.qa_demo_button.configure(state="disabled")
+        self.qa_question_entry.configure(state="disabled")
+        self.qa_progress.start(10)
+        self.qa_status_var.set(
+            "Retrieving evidence and asking Groq..."
+        )
+        self.qa_answer_text.delete("1.0", tk.END)
+        self.qa_evidence_text.delete("1.0", tk.END)
+        self.qa_answer_text.insert(tk.END, "Working...")
+
+        worker = threading.Thread(
+            target=self.process_document_question,
+            args=(question, self.qa_document_path, request_id),
+            daemon=True,
+        )
+        worker.start()
+
+
+    def process_document_question(
+        self,
+        question: str,
+        document_path: Path | None,
+        request_id: int,
+    ) -> None:
+        try:
+            start_time = time.perf_counter()
+            result = self.get_qa_service(document_path).answer(question)
+            elapsed = time.perf_counter() - start_time
+            self.root.after(
+                0,
+                lambda response=result, seconds=elapsed, rid=request_id:
+                    self.document_question_complete(
+                        response,
+                        seconds,
+                        rid,
+                    ),
+            )
+        except Exception as error:
+            error_message = str(error)
+            logger.exception("Document Q&A failed.")
+            self.root.after(
+                0,
+                lambda message=error_message, rid=request_id:
+                    self.document_question_failed(message, rid),
+            )
+
+
+    def document_question_complete(
+        self,
+        result: dict,
+        elapsed: float,
+        request_id: int,
+    ) -> None:
+        expected = self.qa_active_request
+        if expected is None or expected[0] != request_id:
+            return  # Late response to an obsolete request.
+        _, asked_question, asked_scope = expected
+        if (result.get("question") != asked_question
+                or self.qa_document_path != asked_scope):
+            self.document_question_failed(
+                "The completed response did not match the active question or scope.",
+                request_id,
+            )
+            return
+        # Restore the exact question associated with this completed response.
+        self.qa_question_var.set(asked_question)
+        self.qa_active_request = None
+        self.qa_running = False
+        self.qa_progress.stop()
+        self.qa_ask_button.configure(state="normal")
+        self.qa_clear_button.configure(state="normal")
+        self.qa_load_button.configure(state="normal")
+        self.qa_demo_button.configure(state="normal")
+        self.qa_question_entry.configure(state="normal")
+
+        self.qa_answer_text.delete("1.0", tk.END)
+        self.qa_answer_text.insert(
+            tk.END,
+            result.get("answer", ""),
+        )
+
+        evidence = result.get("evidence", [])
+        additional_context = result.get("additional_spatial_context", [])
+        validation = result.get("evidence_validation", {})
+        usage = result.get("usage", {})
+
+        lines = [
+            f"Answered question: {result.get('question', '-')}",
+            f"Grounded: {result.get('grounded', False)}",
+            f"Provider: {result.get('provider', '-')}",
+            f"Model: {result.get('model', '-')}",
+            f"Answer mode: {result.get('answer_mode', '-')}",
+            f"Evidence validation: {validation.get('valid', False)}",
+            f"Answer consistency: {result.get('answer_consistency', {}).get('reason', '-')}",
+            f"Uncertainty: {result.get('uncertainty')}",
+            "",
+            "Model-cited evidence:",
+        ]
+
+        if evidence:
+            for item in evidence:
+                content = item.get("content") or {}
+                detail = content.get("text") if item.get("item_type") == "ocr_region" else None
+                lines.append(
+                    "  - "
+                    f"{item.get('evidence_item_id', '-')} | "
+                    f"{item.get('document_id', '-')} | "
+                    f"{item.get('item_type', '-')}"
+                    + (f" | {detail}" if detail is not None else "")
+                )
+        else:
+            lines.append("  None")
+
+        lines.extend(["", "Additional spatial context (not model-cited):"])
+        if additional_context:
+            for entry in additional_context:
+                item = entry["evidence"]
+                detail = (item.get("content") or {}).get("text", "")
+                lines.append(
+                    f"  - {item.get('evidence_item_id', '-')} | {detail}"
+                    f" | related to {entry.get('related_model_citation_id', '-')}"
+                    " | spatial candidate, NOT a verified field"
+                )
+        else:
+            lines.append("  None")
+
+        lines.extend([
+            "",
+            f"Token usage: {usage}",
+            f"Response time: {elapsed:.2f} s",
+        ])
+
+        self.qa_evidence_text.delete("1.0", tk.END)
+        self.qa_evidence_text.insert(
+            tk.END,
+            "\n".join(lines),
+        )
+
+        if result.get("grounded", False):
+            self.qa_status_var.set(
+                f"Answer complete and grounded ({elapsed:.2f}s)"
+            )
+        else:
+            self.qa_status_var.set(
+                f"No sufficient document evidence ({elapsed:.2f}s)"
+            )
+
+        self.qa_question_entry.focus_set()
+
+
+    def document_question_failed(
+        self,
+        error_message: str,
+        request_id: int | None = None,
+    ) -> None:
+        if request_id is not None and (
+            self.qa_active_request is None or self.qa_active_request[0] != request_id
+        ):
+            return
+        self.qa_active_request = None
+        self.qa_running = False
+        self.qa_progress.stop()
+        self.qa_ask_button.configure(state="normal")
+        self.qa_clear_button.configure(state="normal")
+        self.qa_load_button.configure(state="normal")
+        self.qa_demo_button.configure(state="normal")
+        self.qa_question_entry.configure(state="normal")
+        self.qa_answer_text.delete("1.0", tk.END)
+        self.qa_answer_text.insert(
+            tk.END,
+            "The document question could not be completed.",
+        )
+        self.qa_status_var.set("Document Q&A failed")
+
+        messagebox.showerror(
+            "Document Q&A Error",
+            (
+                f"{error_message}\n\n"
+                "Check GROQ_API_KEY, your internet connection, "
+                "and the application log."
+            ),
+        )
+
+
+    def clear_document_qa(
+        self,
+    ) -> None:
+        if self.qa_running:
+            return
+
+        self.qa_question_var.set("")
+        self.qa_answer_text.delete("1.0", tk.END)
+        self.qa_evidence_text.delete("1.0", tk.END)
+        self.qa_status_var.set("Ready")
+        self.qa_question_entry.focus_set()
+
+
+    # =========================================================================
     # SINGLE DOCUMENT
     # =========================================================================
 
@@ -1248,8 +1807,20 @@ class DocumentUnderstandingApp:
 
         self.input_path = path
 
+        # Changing the image does not create a structured unified JSON.
+        # Invalidate any earlier Q&A output to avoid implying it came from
+        # the newly selected image.
+        if not self.qa_running:
+            self.qa_answer_text.delete("1.0", tk.END)
+            self.qa_evidence_text.delete("1.0", tk.END)
+            self.qa_status_var.set(
+                "New image selected. Q&A still uses its explicitly displayed scope."
+            )
+
         self.current_output_dir = None
         self.current_summary = None
+        self.single_qa_json_path = None
+        self.single_qa_button.configure(state="disabled")
 
         self.file_label.configure(
             text=str(
@@ -1307,6 +1878,8 @@ class DocumentUnderstandingApp:
             return
 
         self.single_running = True
+        self.single_qa_json_path = None
+        self.single_qa_button.configure(state="disabled")
 
         self.process_button.configure(
             state="disabled"
@@ -1373,6 +1946,43 @@ class DocumentUnderstandingApp:
                     output_dir,
                 )
             )
+
+            # Local-only conversion. Failure must not discard successful OCR.
+            # Do not reuse an old Q&A file from a previous processing run.
+            qa_path = output_dir / "unified_raw_ocr.json"
+            try:
+                qa_path.unlink(missing_ok=True)
+                from experiments.experiment_49_ocr_unified_bridge import (
+                    make_unified_ocr_document,
+                )
+                import hashlib
+                import re
+
+                source_id = hashlib.sha256(
+                    str(input_path.resolve()).encode("utf-8")
+                ).hexdigest()[:12]
+                safe_stem = re.sub(r"[^A-Za-z0-9_.-]", "_", input_path.stem)
+                safe_stem = safe_stem[:80].lstrip("._-") or "scan"
+                document = make_unified_ocr_document(
+                    output_dir / "ocr" / "results.csv",
+                    document_id=f"scan_{safe_stem}_{source_id}",
+                    source_image=str(output_dir / "scan" / "scan.png"),
+                )
+                temp_path = qa_path.with_suffix(".json.tmp")
+                try:
+                    temp_path.write_text(
+                        json.dumps(document, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    temp_path.replace(qa_path)
+                finally:
+                    temp_path.unlink(missing_ok=True)
+                self.single_qa_json_path = qa_path.resolve()
+            except Exception:
+                self.single_qa_json_path = None
+                logger.exception(
+                    "OCR completed, but raw-OCR unified JSON generation failed."
+                )
 
             elapsed = (
                 time.perf_counter()
@@ -1446,7 +2056,10 @@ class DocumentUnderstandingApp:
             return
 
         self.status_var.set(
-            "Complete"
+            "Complete" if self.single_qa_json_path else "Complete (Q&A JSON unavailable; check log)"
+        )
+        self.single_qa_button.configure(
+            state="normal" if self.single_qa_json_path else "disabled"
         )
 
         self.detector_var.set(
@@ -1545,6 +2158,49 @@ class DocumentUnderstandingApp:
                 ),
             )
 
+
+    def select_current_scan_for_qa(self) -> None:
+        """Explicit local handoff; do not send OCR text to Groq here."""
+        if self.single_running:
+            return
+        if self.qa_running:
+            messagebox.showinfo(
+                "Document Q&A", "Wait for the current question to finish."
+            )
+            return
+        path = self.single_qa_json_path
+        if path is None or not path.is_file():
+            messagebox.showerror(
+                "Document Q&A", "No current scan Q&A JSON. Process the image again."
+            )
+            self.single_qa_button.configure(state="disabled")
+            return
+        try:
+            from experiments.experiment_41_generic_cross_document_retrieval import (
+                load_json, build_search_corpus,
+            )
+            document = load_json(path)
+            if (
+                not isinstance(document, dict)
+                or document.get("document_type") != "unclassified"
+                or not document.get("free_text")
+                or not build_search_corpus([document])
+            ):
+                raise ValueError("The current scan has no searchable raw OCR regions.")
+        except Exception as error:
+            messagebox.showerror("Document Q&A", str(error))
+            return
+
+        self.qa_document_path = path
+        self.reset_qa_service()
+        self.qa_scope_var.set(
+            f"Selected raw-OCR scan: {document['document_id']} ({path.name})"
+        )
+        self.clear_document_qa()
+        self.qa_status_var.set(
+            "Current scan selected. Asking a question will send selected evidence to Groq."
+        )
+        self.mode_tabs.select(self.qa_mode)
 
     def single_failed(
         self,
@@ -2690,6 +3346,8 @@ class DocumentUnderstandingApp:
             return
 
         self.input_path = None
+        self.single_qa_json_path = None
+        self.single_qa_button.configure(state="disabled")
 
         self.current_output_dir = None
 
