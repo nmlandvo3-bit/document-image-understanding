@@ -60,6 +60,39 @@ def _label_score(question: str, label: str) -> float:
     return score
 
 
+def _normalize_typed_candidate_value(expected_type: str, value: str) -> tuple[str, bool]:
+    """Normalize only punctuation noise before an explicit currency marker."""
+    text = _normalize(value)
+    if expected_type != "money" or not text:
+        return text, False
+
+    if validate_candidate(expected_type, text).valid:
+        return text, False
+
+    working = text.lstrip()
+    punctuation = ".,;:|_~`'\"!?*·•"
+    removed_prefix = False
+
+    while working and working[0] in punctuation:
+        working = working[1:].lstrip()
+        removed_prefix = True
+
+    if working.startswith("NT$"):
+        prefix = "NT$"
+    elif working[:1] in {"$", "€", "£", "¥"}:
+        prefix = working[0]
+    else:
+        return text, False
+
+    if not removed_prefix:
+        return text, False
+
+    candidate = prefix + working[len(prefix):].lstrip()
+    if not validate_candidate(expected_type, candidate).valid:
+        return text, False
+
+    return candidate, candidate != text
+
 def _candidate_type_valid(
     expected_type: str,
     value: str,
@@ -113,7 +146,10 @@ def _field_candidates(
 
     for field in document.get("fields", []):
         label = _normalize(field.get("label", ""))
-        value = _normalize(field.get("value", ""))
+        observed_value = _normalize(field.get("value", ""))
+        value, value_normalized = _normalize_typed_candidate_value(
+            expected_type, observed_value
+        )
 
         if not label or not value:
             continue
@@ -123,6 +159,8 @@ def _field_candidates(
             continue
 
         valid, reason = _candidate_type_valid(expected_type, value)
+        if valid and value_normalized:
+            reason = "money_pattern_match_after_ocr_punctuation_normalization"
 
         if valid and _looks_like_question_label_leakage(question, value):
             valid = False
@@ -133,6 +171,8 @@ def _field_candidates(
                 "source": "structured_field",
                 "label": label,
                 "value": value,
+                "observed_value": observed_value,
+                "value_normalized_for_type": value_normalized,
                 "lexical_score": round(lexical_score, 6),
                 "type_valid": valid,
                 "type_validation_reason": reason,
@@ -178,7 +218,10 @@ def _table_candidates(
                     if other is cell:
                         continue
 
-                    value = _normalize(other.get("text", ""))
+                    observed_value = _normalize(other.get("text", ""))
+                    value, value_normalized = _normalize_typed_candidate_value(
+                        expected_type, observed_value
+                    )
                     if not value:
                         continue
 
@@ -186,6 +229,8 @@ def _table_candidates(
                         expected_type,
                         value,
                     )
+                    if valid and value_normalized:
+                        reason = "money_pattern_match_after_ocr_punctuation_normalization"
 
                     if valid and _looks_like_question_label_leakage(
                         question,
@@ -199,6 +244,8 @@ def _table_candidates(
                             "source": "structured_table_same_row",
                             "label": label,
                             "value": value,
+                            "observed_value": observed_value,
+                            "value_normalized_for_type": value_normalized,
                             "lexical_score": round(lexical_score, 6),
                             "type_valid": valid,
                             "type_validation_reason": reason,
@@ -242,8 +289,11 @@ def _table_candidates(
                         ):
                             continue
 
-                        value = _normalize(
+                        observed_value = _normalize(
                             below_cell.get("text", "")
+                        )
+                        value, value_normalized = _normalize_typed_candidate_value(
+                            expected_type, observed_value
                         )
                         if not value:
                             continue
@@ -252,6 +302,8 @@ def _table_candidates(
                             expected_type,
                             value,
                         )
+                        if valid and value_normalized:
+                            reason = "money_pattern_match_after_ocr_punctuation_normalization"
 
                         if valid and _looks_like_question_label_leakage(
                             question,
@@ -265,6 +317,8 @@ def _table_candidates(
                                 "source": "structured_table_same_column",
                                 "label": label,
                                 "value": value,
+                                "observed_value": observed_value,
+                                "value_normalized_for_type": value_normalized,
                                 "lexical_score": round(
                                     lexical_score,
                                     6,

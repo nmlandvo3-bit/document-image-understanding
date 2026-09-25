@@ -27,6 +27,7 @@ ANSWER_TYPES = (
 
 RELATION_BASE = {
     "same_row_right": 0.96,
+    "inline_label_value": 0.97,
     "same_row_right_continuation": 0.90,
     "table_column_below": 0.92,
     "below": 0.84,
@@ -98,7 +99,7 @@ def infer_answer_type(question: str) -> str:
     if re.search(
         r"\b(?:date of birth|dob|birth(?:day)? date|payment date|"
         r"issue date|expiry date|expiration date|start date|end date|"
-        r"arrival date|departure date|what date|which date|when)\b",
+        r"arrival date|departure date|what date|which date|date|when)\b",
         q,
     ):
         return "date"

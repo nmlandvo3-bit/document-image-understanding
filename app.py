@@ -1276,8 +1276,9 @@ class DocumentUnderstandingApp:
             intro,
             text=(
                 "Use the demo corpus, load a unified JSON, or choose "
-                "Ask About This Scan after local processing. New scans use raw OCR "
-                "regions, not verified form fields or table structures."
+                "Ask About This Scan after local processing. New scans use automatic "
+                "structure first with raw OCR fallback when needed; generated structure "
+                "remains unverified."
             ),
             wraplength=1000,
             justify="left",
@@ -1566,7 +1567,7 @@ class DocumentUnderstandingApp:
         self.qa_question_entry.configure(state="disabled")
         self.qa_progress.start(10)
         self.qa_status_var.set(
-            "Retrieving evidence and asking Groq..."
+            "Analyzing document structure and retrieving grounded evidence..."
         )
         self.qa_answer_text.delete("1.0", tk.END)
         self.qa_evidence_text.delete("1.0", tk.END)
@@ -2205,11 +2206,12 @@ class DocumentUnderstandingApp:
         self.qa_document_path = path
         self.reset_qa_service()
         self.qa_scope_var.set(
-            f"Selected raw-OCR scan: {document['document_id']} ({path.name})"
+            f"Selected scan: {document['document_id']} ({path.name})"
         )
         self.clear_document_qa()
         self.qa_status_var.set(
-            "Current scan selected. Asking a question will send selected evidence to Groq."
+            "Current scan selected. Q&A uses automatic structured retrieval first, "
+            "then raw OCR fallback when needed; only selected evidence is sent to Groq."
         )
         self.mode_tabs.select(self.qa_mode)
 

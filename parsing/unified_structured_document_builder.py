@@ -54,10 +54,20 @@ def _build_fields(
                     field.get("semantic_verified", False)
                 ),
                 "geometry_score": field.get("geometry_score"),
-                "evidence_item_ids": [
-                    _evidence_id(document_id, field["label_region_id"]),
-                    _evidence_id(document_id, field["value_region_id"]),
-                ],
+                "evidence_item_ids": list(
+                    dict.fromkeys(
+                        [
+                            _evidence_id(
+                                document_id,
+                                field["label_region_id"],
+                            ),
+                            _evidence_id(
+                                document_id,
+                                field["value_region_id"],
+                            ),
+                        ]
+                    )
+                ),
             }
         )
 

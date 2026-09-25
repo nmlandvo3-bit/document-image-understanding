@@ -309,6 +309,48 @@ def _collect_candidates(
     return candidates
 
 
+def _inline_label_value_candidate(
+    region: dict[str, Any],
+) -> dict[str, Any] | None:
+    text = _normalize(region.get("text", ""))
+
+    if not text:
+        return None
+
+    separator_index = -1
+    for separator in (":", "："):
+        idx = text.find(separator)
+        if idx != -1 and (separator_index == -1 or idx < separator_index):
+            separator_index = idx
+
+    if separator_index <= 0:
+        return None
+
+    label = _normalize(text[:separator_index])
+    value = _normalize(text[separator_index + 1:])
+
+    if not label or not value:
+        return None
+
+    if not any(ch.isalpha() for ch in label):
+        return None
+
+    if len(label) > 60 or len(value) > 120:
+        return None
+
+    if label.casefold() in {"http", "https", "ftp"}:
+        return None
+
+    if not _probable_label(label + ":"):
+        return None
+
+    return {
+        "label": label,
+        "value": value,
+        "region_id": region["region_id"],
+        "row_id": region["row_id"],
+    }
+
 def reconstruct_form_fields(
     document: dict[str, Any],
     *,
@@ -318,6 +360,28 @@ def reconstruct_form_fields(
     grouped_rows = _rows(layout)
 
     fields = []
+
+    for row_id in sorted(grouped_rows):
+        for region in grouped_rows[row_id]:
+            inline = _inline_label_value_candidate(region)
+            if inline is None:
+                continue
+
+            fields.append(
+                {
+                    "field_id": f"field_{len(fields)+1:03d}",
+                    "label": inline["label"],
+                    "value": inline["value"],
+                    "label_region_id": inline["region_id"],
+                    "value_region_id": inline["region_id"],
+                    "relationship": "inline_label_value",
+                    "label_row_id": inline["row_id"],
+                    "value_row_id": inline["row_id"],
+                    "geometry_score": 0.0,
+                    "inference_status": "automatic_inline_candidate",
+                    "semantic_verified": False,
+                }
+            )
 
     for row_id in sorted(grouped_rows):
         for label in grouped_rows[row_id]:
