@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from services.receipt_value_normalization import normalize_receipt_value
+
 
 def _clean(value: Any) -> str:
     return " ".join(str(value or "").split())
@@ -157,6 +159,13 @@ def infer_receipt_semantics(document: dict[str, Any]) -> dict[str, Any] | None:
     merchant = _merchant(document)
     if merchant is not None:
         interpreted["merchant"] = merchant
+
+    for key, entry in interpreted.items():
+        if entry["status"] == "candidate":
+            entry.update(normalize_receipt_value(key, entry["observed_value"]))
+        elif entry["status"] == "ambiguous":
+            for candidate in entry["candidates"]:
+                candidate.update(normalize_receipt_value(key, candidate["observed_value"]))
     return {
         "status": "receipt_candidate",
         "semantic_verified": False,
