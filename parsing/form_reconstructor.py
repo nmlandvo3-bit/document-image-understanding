@@ -360,6 +360,7 @@ def reconstruct_form_fields(
     grouped_rows = _rows(layout)
 
     fields = []
+    inline_region_ids = set()
 
     for row_id in sorted(grouped_rows):
         for region in grouped_rows[row_id]:
@@ -367,6 +368,7 @@ def reconstruct_form_fields(
             if inline is None:
                 continue
 
+            inline_region_ids.add(region["region_id"])
             fields.append(
                 {
                     "field_id": f"field_{len(fields)+1:03d}",
@@ -385,6 +387,11 @@ def reconstruct_form_fields(
 
     for row_id in sorted(grouped_rows):
         for label in grouped_rows[row_id]:
+            # An inline label already has its value in this OCR region.
+            # Reusing it as a geometric label can attach an unrelated line.
+            if label["region_id"] in inline_region_ids:
+                continue
+
             label_text = _normalize(label["text"])
 
             if not _probable_label(label_text):
