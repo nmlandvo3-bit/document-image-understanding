@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from services.receipt_value_normalization import normalize_receipt_value
+from services.receipt_item_rows import extract_receipt_item_rows
 
 
 def _clean(value: Any) -> str:
@@ -166,8 +167,11 @@ def infer_receipt_semantics(document: dict[str, Any]) -> dict[str, Any] | None:
         elif entry["status"] == "ambiguous":
             for candidate in entry["candidates"]:
                 candidate.update(normalize_receipt_value(key, candidate["observed_value"]))
+    item_rows = extract_receipt_item_rows(document.get("records", []))
     return {
         "status": "receipt_candidate",
         "semantic_verified": False,
         "fields": interpreted,
+        "items": item_rows["items"],
+        "ambiguous_item_rows": item_rows["ambiguous_rows"],
     }

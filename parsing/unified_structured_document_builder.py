@@ -221,6 +221,7 @@ def build_unified_structured_document(
         "fields": fields,
         "sections": sections,
         "free_text": free_text,
+        "records": records,
         "evidence": document.get("evidence", []),
     })
 
