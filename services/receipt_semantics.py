@@ -10,6 +10,7 @@ from typing import Any
 
 from services.receipt_value_normalization import normalize_receipt_value
 from services.receipt_item_rows import extract_receipt_item_rows
+from services.receipt_table_evidence import extract_bare_receipt_table
 
 
 def _clean(value: Any) -> str:
@@ -128,11 +129,15 @@ def infer_receipt_semantics(document: dict[str, Any]) -> dict[str, Any] | None:
         })
 
     receipt_signals = {"subtotal", "total", "tax", "payment_method", "change", "items_sold"}
-    if (
-        len(receipt_signals.intersection(grouped)) < 2
-        or not {"payment_method", "change", "items_sold"}.intersection(grouped)
-    ):
+    explicit_receipt = (
+        len(receipt_signals.intersection(grouped)) >= 2
+        and bool({"payment_method", "change", "items_sold"}.intersection(grouped))
+    )
+    table_receipt = None if explicit_receipt else extract_bare_receipt_table(document.get("records", []))
+    if not explicit_receipt and table_receipt is None:
         return None
+    if table_receipt is not None:
+        grouped.update(table_receipt["fields"])
 
     if "total" not in grouped:
         fallback = _unpaired_total_candidates(document)
@@ -163,11 +168,11 @@ def infer_receipt_semantics(document: dict[str, Any]) -> dict[str, Any] | None:
 
     for key, entry in interpreted.items():
         if entry["status"] == "candidate":
-            entry.update(normalize_receipt_value(key, entry["observed_value"]))
+            entry.update(normalize_receipt_value(key, entry["observed_value"], allow_currencyless=entry.get("relationship") == "same_table_row"))
         elif entry["status"] == "ambiguous":
             for candidate in entry["candidates"]:
                 candidate.update(normalize_receipt_value(key, candidate["observed_value"]))
-    item_rows = extract_receipt_item_rows(document.get("records", []))
+    item_rows = table_receipt if table_receipt is not None else extract_receipt_item_rows(document.get("records", []))
     return {
         "status": "receipt_candidate",
         "semantic_verified": False,

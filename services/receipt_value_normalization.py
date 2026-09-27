@@ -9,12 +9,12 @@ from decimal import Decimal
 import re
 from typing import Any
 
-MONEY_FIELDS = {"subtotal", "tax", "total", "change"}
+MONEY_FIELDS = {"subtotal", "tax", "total", "change", "cash_tendered"}
 IDENTIFIER_FIELDS = {"register", "transaction_number"}
 MONEY_RE = re.compile(r"^[\s.'‘’]*([$€£¥])\s*(\d+(?:,\d{3})*)\.(\d{2})$")
 
 
-def normalize_receipt_value(key: str, observed: str) -> dict[str, Any]:
+def normalize_receipt_value(key: str, observed: str, *, allow_currencyless: bool = False) -> dict[str, Any]:
     """Return additive normalization metadata without interpreting uncertainty."""
     text = " ".join(str(observed).split()).strip()
     result: dict[str, Any] = {
@@ -25,6 +25,9 @@ def normalize_receipt_value(key: str, observed: str) -> dict[str, Any]:
     if key in MONEY_FIELDS:
         match = MONEY_RE.fullmatch(text)
         if not match:
+            if allow_currencyless and re.fullmatch(r"\d+(?:\.\d{1,2})?", text):
+                result.update(normalized_value=text, normalization_status="normalized_currency_unspecified", currency_symbol=None)
+                return result
             result["normalization_status"] = "unrecognized_money"
             return result
         symbol, units, cents = match.groups()
