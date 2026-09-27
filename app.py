@@ -1275,7 +1275,8 @@ class DocumentUnderstandingApp:
             intro,
             text=(
                 "Ask questions about a selected unified document. "
-                "Only evidence selected by retrieval is sent to Groq when you ask."
+                "Groq interprets the question using bounded OCR and reconstructed "
+                "structure; retrieved evidence is then used for the answer."
             ),
             wraplength=1000,
             justify="left",
@@ -1488,7 +1489,8 @@ class DocumentUnderstandingApp:
             text=(
                 "Ask supported questions across processed scans. Answers are built "
                 "locally from saved OCR JSON; generated structure is unverified. "
-                "This tab does not call OCR, Groq, or the network."
+                "Offline by default. Enable Groq below to send bounded saved OCR "
+                "context for question interpretation and grounded answer wording."
             ),
             wraplength=1000,
             justify="left",
@@ -1505,6 +1507,13 @@ class DocumentUnderstandingApp:
             scope, text="Choose folder", command=self.choose_corpus_root
         )
         self.corpus_browse_button.pack(side="right", padx=4)
+
+        self.corpus_use_groq_var = tk.BooleanVar(value=False)
+        self.corpus_groq_toggle = ttk.Checkbutton(
+            container, text="Use Groq for corpus questions (sends OCR context)",
+            variable=self.corpus_use_groq_var,
+        )
+        self.corpus_groq_toggle.pack(anchor="w", pady=(0, 10))
 
         question_frame = ttk.LabelFrame(container, text="Corpus question", padding=12)
         question_frame.pack(fill="x", pady=(0, 10))
@@ -1598,28 +1607,33 @@ class DocumentUnderstandingApp:
             messagebox.showinfo("Corpus Q&A", "Please enter a question first.")
             return
         root = Path(self.corpus_root_var.get()).resolve()
+        use_groq = bool(self.corpus_use_groq_var.get())
         self.corpus_running = True
         self.corpus_request_counter += 1
         request_id = self.corpus_request_counter
-        self.corpus_active_request = (request_id, question, root)
+        self.corpus_active_request = (request_id, question, root, use_groq)
         for widget in (
             self.corpus_ask_button, self.corpus_clear_button,
             self.corpus_browse_button, self.corpus_question_entry,
+            self.corpus_groq_toggle,
         ):
             widget.configure(state="disabled")
         self.corpus_progress.start(10)
-        self.corpus_status_var.set("Building local corpus and retrieving evidence...")
+        self.corpus_status_var.set(
+            "Interpreting with Groq and retrieving local evidence..." if use_groq
+            else "Building local corpus and retrieving evidence..."
+        )
         self.corpus_answer_text.delete("1.0", tk.END)
         self.corpus_evidence_text.delete("1.0", tk.END)
         self.corpus_answer_text.insert(tk.END, "Working...")
         threading.Thread(
             target=self.process_corpus_question,
-            args=(question, root, request_id),
+            args=(question, root, request_id, use_groq),
             daemon=True,
         ).start()
 
     def process_corpus_question(
-        self, question: str, root: Path, request_id: int
+        self, question: str, root: Path, request_id: int, use_groq: bool = False
     ) -> None:
         try:
             from services.processed_scan_corpus import load_processed_scan_corpus
@@ -1627,7 +1641,11 @@ class DocumentUnderstandingApp:
 
             start = time.perf_counter()
             corpus = load_processed_scan_corpus(root)
-            result = answer_corpus_question(corpus, question)
+            if use_groq:
+                from services.corpus_groq_assisted import answer_corpus_question_assisted
+                result = answer_corpus_question_assisted(corpus, question)
+            else:
+                result = answer_corpus_question(corpus, question)
             elapsed = time.perf_counter() - start
             self.root.after(
                 0,
@@ -1649,9 +1667,10 @@ class DocumentUnderstandingApp:
         expected = self.corpus_active_request
         if expected is None or expected[0] != request_id:
             return
-        _, question, root = expected
+        _, question, root, use_groq = expected
         if (self.corpus_question_var.get().strip() != question
-                or Path(self.corpus_root_var.get()).resolve() != root):
+                or Path(self.corpus_root_var.get()).resolve() != root
+                or bool(self.corpus_use_groq_var.get()) != use_groq):
             self.corpus_question_failed("Question or folder changed during processing.", request_id)
             return
         from services.corpus_qa_presentation import present_corpus_answer
@@ -1663,6 +1682,7 @@ class DocumentUnderstandingApp:
         for widget in (
             self.corpus_ask_button, self.corpus_clear_button,
             self.corpus_browse_button, self.corpus_question_entry,
+            self.corpus_groq_toggle,
         ):
             widget.configure(state="normal")
         self.corpus_answer_text.delete("1.0", tk.END)
@@ -1670,7 +1690,8 @@ class DocumentUnderstandingApp:
         self.corpus_evidence_text.delete("1.0", tk.END)
         self.corpus_evidence_text.insert(tk.END, evidence)
         self.corpus_status_var.set(
-            f"Local result: {result.get('status', '-')} ({elapsed:.2f}s)"
+            f"{'Groq-assisted' if use_groq else 'Local'} result: "
+            f"{result.get('status', '-')} ({elapsed:.2f}s)"
         )
         self.corpus_question_entry.focus_set()
 
@@ -1684,12 +1705,13 @@ class DocumentUnderstandingApp:
         for widget in (
             self.corpus_ask_button, self.corpus_clear_button,
             self.corpus_browse_button, self.corpus_question_entry,
+            self.corpus_groq_toggle,
         ):
             widget.configure(state="normal")
         self.corpus_answer_text.delete("1.0", tk.END)
-        self.corpus_answer_text.insert(tk.END, "The local corpus question could not be completed.")
+        self.corpus_answer_text.insert(tk.END, "The corpus question could not be completed.")
         self.corpus_evidence_text.delete("1.0", tk.END)
-        self.corpus_status_var.set("Local corpus Q&A failed")
+        self.corpus_status_var.set("Corpus Q&A failed")
         messagebox.showerror("Corpus Q&A Error", detail)
 
 

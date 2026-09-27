@@ -298,6 +298,20 @@ def _table_candidates(
         ).append(record)
 
     for table_id, records in records_by_table.items():
+        # A bare quantity such as "2" can satisfy the broad money validator.
+        # Use an explicit Qty/Quantity table header to keep it out of money
+        # answers while retaining currencyless prices in two-column receipts.
+        quantity_columns: set[int] = set()
+        if expected_type == "money":
+            for header in records:
+                header_cells = header.get("cells", [])
+                labels = {_normalize(c.get("text", "")).casefold() for c in header_cells}
+                if not ({"item", "price"} <= labels):
+                    continue
+                quantity_columns.update(
+                    int(c.get("column_index", -1)) for c in header_cells
+                    if _normalize(c.get("text", "")).casefold() in {"qty", "quantity"}
+                )
         for record_index, record in enumerate(records):
             cells = record.get("cells", [])
 
@@ -312,6 +326,10 @@ def _table_candidates(
 
                 for other in cells:
                     if other is cell:
+                        continue
+
+                    if (expected_type == "money"
+                            and int(other.get("column_index", -1)) in quantity_columns):
                         continue
 
                     observed_value = _normalize(other.get("text", ""))

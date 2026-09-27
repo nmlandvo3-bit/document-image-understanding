@@ -10,7 +10,7 @@ from typing import Any
 
 from services.receipt_value_normalization import normalize_receipt_value
 from services.receipt_item_rows import extract_receipt_item_rows
-from services.receipt_table_evidence import extract_bare_receipt_table
+from services.receipt_table_evidence import extract_bare_receipt_table, extract_currency_receipt_table
 from services.receipt_standalone_metadata import standalone_receipt_metadata
 from services.receipt_consistency import assess_receipt_consistency
 
@@ -32,10 +32,14 @@ def _semantic_key(label: str) -> str | None:
         "total": "total", "paid": "payment_method",
         "payment method": "payment_method", "change": "change",
         "items sold": "items_sold",
+        "receipt": "receipt_number", "receipt no": "receipt_number",
+        "receipt number": "receipt_number",
     }
     if key in exact:
         return exact[key]
     if len(words) == 2 and words[0] == "tax" and words[1].isdigit():
+        return "tax"
+    if re.fullmatch(r"sales\s+tax\s*\(\s*\d+(?:\.\d+)?\s*%\s*\)", label, re.I):
         return "tax"
     return None
 
@@ -136,6 +140,10 @@ def infer_receipt_semantics(document: dict[str, Any]) -> dict[str, Any] | None:
         and bool({"payment_method", "change", "items_sold"}.intersection(grouped))
     )
     table_receipt = None if explicit_receipt else extract_bare_receipt_table(document.get("records", []))
+    # A printed receipt identifier plus a headed item/quantity/price table
+    # and ordered money summaries is strong receipt evidence on its own.
+    if table_receipt is None and "receipt_number" in grouped:
+        table_receipt = extract_currency_receipt_table(document.get("records", []))
     if not explicit_receipt and table_receipt is None:
         return None
     if table_receipt is not None:

@@ -8,6 +8,10 @@ def present_corpus_answer(result: dict[str, Any]) -> tuple[str, str]:
     """Return (answer_text, evidence_text) without treating candidates as verified."""
     status = result.get("status")
     evidence = [f"Status: {status}", "Generated structure is unverified."]
+    if result.get("provider"):
+        evidence.append(f"Answer path: {result['provider']}")
+    if result.get("interpreted_question"):
+        evidence.append(f"Search question: {result['interpreted_question']}")
 
     if status == "answered" and result.get("answer_type") == "receipt_totals":
         totals = result.get("totals", [])

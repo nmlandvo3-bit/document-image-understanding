@@ -256,7 +256,11 @@ def validate_candidate(expected_type: str, candidate: str) -> CandidateValidatio
                 expected_type, text, False, "name_contains_digits"
             )
 
-        valid = all(NAME_TOKEN_PATTERN.fullmatch(part) for part in parts)
+        valid = all(
+            NAME_TOKEN_PATTERN.fullmatch(part)
+            or (len(part) == 2 and part[0].isalpha() and part[1] == ".")
+            for part in parts
+        )
         return CandidateValidation(
             expected_type,
             text,

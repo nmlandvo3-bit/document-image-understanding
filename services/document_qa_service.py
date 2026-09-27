@@ -13,7 +13,7 @@ Unified documents
     -> provenance validation
     -> application response
 
-This module does NOT rerun OCR or document parsing.
+OCR is not rerun. Local structure is reconstructed once when a scan is loaded.
 """
 
 import json
@@ -27,7 +27,6 @@ from groq import Groq
 from services.layout_aware_ocr_retrieval import build_raw_ocr_packet
 from parsing.unified_structured_document_builder import build_unified_structured_document
 from services.structured_document_retrieval import retrieve_structured_answer
-from services.answer_type_confidence import score_candidate
 from services.answer_type_confidence import (
     infer_answer_type,
     score_candidate,
@@ -89,6 +88,16 @@ Return JSON only:
 }
 """.strip()
 
+QUESTION_PLAN_PROMPT = """
+Interpret a question about the selected OCR document for local retrieval.
+The supplied OCR and structure are unverified candidates. Do not answer.
+Return JSON only: {"focused_question": "a short search question"}.
+Keep only words from the original question; do not add values seen in the
+document. Preserve every important word from the original question,
+including the target and requested attribute (such as price versus quantity).
+If the question cannot be narrowed safely, copy it unchanged.
+""".strip()
+
 
 class DocumentQAService:
     def __init__(
@@ -117,6 +126,7 @@ class DocumentQAService:
 
         self.documents = []
         self.corpus = []
+        self.structured_documents = {}
 
         self._load_documents(document_paths)
 
@@ -173,6 +183,12 @@ class DocumentQAService:
             raise ValueError("Selected documents have no searchable items.")
         self.documents = documents
         self.corpus = corpus
+        # Reconstruct once on load; the OCR evidence itself stays unchanged.
+        self.structured_documents = {
+            document["document_id"]: build_unified_structured_document(document)
+            for document in documents
+            if document.get("document_type") == "unclassified"
+        }
 
     def get_document_summary(
         self,
@@ -360,15 +376,180 @@ class DocumentQAService:
                 }
         return None
 
-    def _structured_packet(self, question):
+    def _question_context(self):
+        """Bounded OCR and locally reconstructed structure for interpretation."""
+        result = []
+        for document in self.documents:
+            if document.get("document_type") != "unclassified":
+                continue
+            structured = getattr(self, "structured_documents", {}).get(
+                document["document_id"]
+            ) or build_unified_structured_document(document)
+            result.append({
+                "document_id": document["document_id"],
+                "fields": [{
+                    "label": field.get("label"),
+                    "value": field.get("value"),
+                    "evidence_item_ids": field.get("evidence_item_ids", []),
+                } for field in structured.get("fields", [])[:40]],
+                "headings": [{
+                    "text": item.get("text"),
+                    "evidence_item_ids": item.get("evidence_item_ids", []),
+                } for item in structured.get("free_text", [])
+                    if item.get("structure_type") == "heading" ][:20],
+                "rows": [{
+                    "source_row_id": record.get("source_row_id"),
+                    "cells": [{
+                        "column_index": cell.get("column_index"),
+                        "text": cell.get("text"),
+                        "evidence_item_ids": cell.get("evidence_item_ids", []),
+                    } for cell in record.get("cells", []) if str(cell.get("text", "")).strip()],
+                } for record in structured.get("records", [])[:40]],
+                "ocr_regions": [{
+                    "region_id": region.get("region_id"),
+                    "text": region.get("text"),
+                    "bbox": region.get("bbox"),
+                } for region in document.get("evidence", [])[:80]
+                    if region.get("evidence_type") == "ocr_region"],
+            })
+        return result
+
+    def _focused_question(self, question):
+        """Ask Groq to narrow wording; reject new facts or a changed type."""
+        context = self._question_context()
+        if not context:
+            return question
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": QUESTION_PLAN_PROMPT},
+                    {"role": "user", "content": json.dumps({
+                        "question": question,
+                        "document_context": context,
+                    }, ensure_ascii=False, separators=(",", ":"))},
+                ],
+                temperature=0.0,
+                reasoning_effort="low",
+                include_reasoning=False,
+                response_format={"type": "json_object"},
+                max_completion_tokens=120,
+                stream=False,
+            )
+            parsed = self._parse_json_response(response.choices[0].message.content or "")
+            focus = parsed.get("focused_question")
+            if not isinstance(focus, str) or not focus.strip():
+                return question
+            original = set(re.findall(r"[\w]+", question.casefold()))
+            proposed = set(re.findall(r"[\w]+", focus.casefold()))
+            if not proposed or not proposed.issubset(original):
+                return question
+            question_words = {
+                "a", "an", "the", "what", "which", "who", "where", "when",
+                "how", "is", "are", "was", "were", "does", "did", "do",
+                "can", "could", "please", "tell", "me", "give", "show",
+                "of", "on", "in", "at", "by", "for", "from", "to", "this",
+                "that", "it", "its",
+            }
+            if not (original - question_words).issubset(proposed):
+                return question
+            if infer_answer_type(focus) != infer_answer_type(question):
+                return question
+            return focus.strip()
+        except Exception:
+            # A failed interpretation request cannot block local retrieval.
+            return question
+
+    def _location_packet(self, question):
+        """Select explicitly printed street addresses for location questions."""
+        wording = question.casefold()
+        if not re.search(r"\b(?:address|location|located)\b", wording):
+            return None
+        # An item location or customer's address is a different request.
+        if re.search(r"\b(?:customer|cashier|item|product|shipping|billing)\b", wording):
+            return None
+
+        street = re.compile(
+            r"\b\d{1,6}\s+[^\n,]{2,80}?\s+"
+            r"(?:street|st\.?|avenue|ave\.?|road|rd\.?|"
+            r"boulevard|blvd\.?|lane|ln\.?|drive|dr\.?)\b",
+            re.IGNORECASE,
+        )
+        found = []
+        for document in self.documents:
+            if document.get("document_type") != "unclassified":
+                continue
+            for region in document.get("evidence", []):
+                if region.get("evidence_type") != "ocr_region":
+                    continue
+                value = " ".join(str(region.get("text", "")).split())
+                if not street.search(value):
+                    continue
+                evidence_id = (
+                    f"{document['document_id']}:ocr_region:{region['region_id']}"
+                )
+                found.append((value, evidence_id))
+
+        if not found:
+            return None
+        distinct = {value.casefold() for value, _ in found}
+        if len(distinct) > 1:
+            evidence = [
+                item for _, evidence_id in found
+                if (item := self._raw_region_packet_item(evidence_id)) is not None
+            ]
+            return {
+                "question": question,
+                "answer_mode": "structured_ambiguous_candidates",
+                "evidence": evidence,
+                "ambiguities": [{
+                    "value": value,
+                    "label": "printed_address",
+                    "source": "ocr_address_region",
+                    "evidence_item_ids": [evidence_id],
+                    "reason": "multiple_printed_addresses",
+                } for value, evidence_id in found],
+                "structured_candidate": None,
+                "evidence_level": "automatic_structured_candidates",
+            }
+
+        value = found[0][0]
+        ids = list(dict.fromkeys(evidence_id for _, evidence_id in found))
+        evidence = [
+            item for evidence_id in ids
+            if (item := self._raw_region_packet_item(evidence_id)) is not None
+        ]
+        if not evidence:
+            return None
+        return {
+            "question": question,
+            "answer_mode": "structured_answer_candidate",
+            "evidence": evidence,
+            "ambiguities": [],
+            "structured_candidate": {
+                "label": "printed_address",
+                "value": value,
+                "source": "ocr_address_region",
+                "relationship": "single_ocr_region",
+                "evidence_item_ids": ids,
+                "value_evidence_item_ids": ids,
+            },
+            "evidence_level": "automatic_structured_candidates",
+        }
+
+    def _structured_packet(self, question, retrieval_question=None):
         structured_results = []
 
         for document in self.documents:
             if document.get("document_type") != "unclassified":
                 continue
 
-            structured_document = build_unified_structured_document(document)
-            retrieval = retrieve_structured_answer(structured_document, question)
+            structured_document = getattr(self, "structured_documents", {}).get(
+                document["document_id"]
+            ) or build_unified_structured_document(document)
+            retrieval = retrieve_structured_answer(
+                structured_document, retrieval_question or question
+            )
             structured_results.append(retrieval)
 
         if not structured_results:
@@ -497,9 +678,12 @@ class DocumentQAService:
             "evidence_level": "automatic_structured_candidates",
         }
 
-    def build_llm_packet(self, question):
+    def build_llm_packet(self, question, retrieval_question=None):
         if all(d.get("document_type") == "unclassified" for d in self.documents):
-            structured_packet = self._structured_packet(question)
+            location_packet = self._location_packet(question)
+            if location_packet is not None:
+                return location_packet
+            structured_packet = self._structured_packet(question, retrieval_question)
             if structured_packet is not None:
                 return structured_packet
             return build_raw_ocr_packet(question, self.documents)
@@ -1052,11 +1236,8 @@ class DocumentQAService:
                 "question cannot be empty."
             )
 
-        packet = (
-            self.build_llm_packet(
-                question
-            )
-        )
+        retrieval_question = self._focused_question(question)
+        packet = self.build_llm_packet(question, retrieval_question)
 
         # Experiment 59: do not ask the model to choose among multiple
         # equally plausible spatial values for the same label. The ambiguity
