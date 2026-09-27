@@ -10,7 +10,7 @@ import re
 from typing import Any
 
 MONEY_FIELDS = {"subtotal", "tax", "total", "change", "cash_tendered"}
-IDENTIFIER_FIELDS = {"register", "transaction_number"}
+IDENTIFIER_FIELDS = {"register", "transaction_number", "receipt_number"}
 MONEY_RE = re.compile(r"^[\s.'‘’]*([$€£¥])\s*(\d+(?:,\d{3})*)\.(\d{2})$")
 
 

@@ -11,6 +11,7 @@ from typing import Any
 from services.receipt_value_normalization import normalize_receipt_value
 from services.receipt_item_rows import extract_receipt_item_rows
 from services.receipt_table_evidence import extract_bare_receipt_table
+from services.receipt_standalone_metadata import standalone_receipt_metadata
 
 
 def _clean(value: Any) -> str:
@@ -138,6 +139,9 @@ def infer_receipt_semantics(document: dict[str, Any]) -> dict[str, Any] | None:
         return None
     if table_receipt is not None:
         grouped.update(table_receipt["fields"])
+
+    for key, candidates in standalone_receipt_metadata(document).items():
+        grouped.setdefault(key, []).extend(candidates)
 
     if "total" not in grouped:
         fallback = _unpaired_total_candidates(document)
