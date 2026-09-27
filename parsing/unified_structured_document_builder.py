@@ -23,6 +23,7 @@ from parsing.layout_analyzer_refined import analyze_document_layout_refined
 from parsing.table_reconstructor import reconstruct_candidate_tables
 from parsing.form_reconstructor import reconstruct_form_fields
 from parsing.structure_classifier import classify_document_structure
+from services.receipt_semantics import infer_receipt_semantics
 
 
 def _evidence_id(document_id: str | None, region_id: int | str) -> str:
@@ -215,6 +216,13 @@ def build_unified_structured_document(
     sections = _build_sections(structure_result)
     controls = _build_controls(document_id, structure_result)
     free_text = _build_free_text(document_id, structure_result)
+    receipt_semantics = infer_receipt_semantics({
+        "document_id": document_id,
+        "fields": fields,
+        "sections": sections,
+        "free_text": free_text,
+        "evidence": document.get("evidence", []),
+    })
 
     # Evidence is deliberately copied rather than transformed so the new
     # structured layer remains traceable to the exact OCR evidence.
@@ -236,6 +244,7 @@ def build_unified_structured_document(
         "controls": controls,
         "sections": sections,
         "free_text": free_text,
+        **({"receipt_semantics": receipt_semantics} if receipt_semantics is not None else {}),
         "evidence": evidence,
         "parsing_metadata": {
             "candidate_table_count": table_result.get(
