@@ -61,7 +61,7 @@ def answer_corpus_question(index: dict[str, Any], question: str) -> dict[str, An
                 "ranked_totals": comparison["ranked_totals"]}
 
     lookup = re.fullmatch(
-        r"which (?:receipt|document) has receipt (?:number|no\.?) ([A-Za-z0-9/-]+)", text, re.I
+        r"which (?:receipt|document) has (?:receipt )?(?:number|no\.?) ([A-Za-z0-9/-]+)", text, re.I
     )
     if lookup:
         match = find_documents(index, "receipt_number", lookup.group(1))

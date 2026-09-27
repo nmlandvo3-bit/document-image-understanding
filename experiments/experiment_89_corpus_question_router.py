@@ -50,6 +50,7 @@ def main() -> int:
     ask = lambda question: answer_corpus_question(index, question)
 
     receipt = ask("Which receipt has receipt number 004512?")
+    short_receipt = ask("Which receipt has number 004512?")
     heading = ask("Which document has heading FRESH MART SUPERMARKET?")
     campus_date = ask("What is the date on receipt number 004512?")
     campus_number = ask("What is the receipt number for NDHU CAMPUS STORE?")
@@ -91,6 +92,7 @@ def main() -> int:
     checks = [
         ("receipt number resolves campus document", receipt["status"] == "one_match" and receipt["answer"] == campus_id),
         ("receipt lookup retains OCR evidence", len(receipt["matches"][0]["evidence_item_ids"]) == 1),
+        ("natural receipt-number phrasing resolves campus", short_receipt["status"] == "one_match" and short_receipt["answer"] == campus_id and short_receipt["matches"] == receipt["matches"]),
         ("heading resolves supermarket document", heading["status"] == "one_match" and heading["answer"] == market_id),
         ("heading lookup retains OCR evidence", len(heading["matches"][0]["evidence_item_ids"]) == 2),
         ("campus date is normalized and grounded", campus_date["status"] == "answered" and campus_date["answer"] == "2026-09-14" and campus_date["document_id"] == campus_id and len(campus_date["evidence_item_ids"]) == 1),
