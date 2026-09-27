@@ -137,6 +137,102 @@ def _looks_like_question_label_leakage(
     return value_tokens.issubset(question_tokens)
 
 
+_DOCUMENT_IDENTITY_CUES = {
+    "title", "store", "merchant", "company", "issuer",
+    "supermarket", "business", "organization", "document name",
+}
+
+def _asks_for_document_identity(question: str) -> bool:
+    text = _normalize(question).casefold()
+    if "document name" in text:
+        return True
+    return bool(
+        _tokens(question)
+        & {
+            "title", "store", "merchant", "company", "issuer",
+            "supermarket", "business", "organization",
+        }
+    )
+
+def _heading_identity_candidates(
+    document: dict[str, Any],
+    question: str,
+    expected_type: str,
+) -> list[dict[str, Any]]:
+    if not _asks_for_document_identity(question):
+        return []
+
+    heading_sections = [
+        section
+        for section in document.get("sections", [])
+        if section.get("structure_type") == "heading"
+    ]
+    if not heading_sections:
+        return []
+
+    first_section = min(
+        heading_sections,
+        key=lambda section: (
+            int(section.get("row_start", 10**9)),
+            str(section.get("section_id", "")),
+        ),
+    )
+
+    row_ids = {
+        int(row_id)
+        for row_id in first_section.get("row_ids", [])
+        if row_id is not None
+    }
+
+    heading_items = [
+        item
+        for item in document.get("free_text", [])
+        if (
+            item.get("structure_type") == "heading"
+            and item.get("row_id") is not None
+            and int(item.get("row_id")) in row_ids
+        )
+    ]
+    heading_items.sort(
+        key=lambda item: (
+            int(item.get("row_id", 10**9)),
+            int(item.get("region_id", 10**9)),
+        )
+    )
+
+    texts = [
+        _normalize(item.get("text", ""))
+        for item in heading_items
+        if _normalize(item.get("text", ""))
+    ]
+    if not texts:
+        return []
+
+    value = " ".join(texts)
+    valid, reason = _candidate_type_valid(expected_type, value)
+
+    evidence_item_ids = list(
+        dict.fromkeys(
+            evidence_id
+            for item in heading_items
+            for evidence_id in item.get("evidence_item_ids", [])
+        )
+    )
+
+    return [{
+        "source": "structured_heading",
+        "label": "document_identity_heading",
+        "value": value,
+        "observed_value": value,
+        "value_normalized_for_type": False,
+        "lexical_score": 3.0,
+        "type_valid": valid,
+        "type_validation_reason": reason,
+        "evidence_item_ids": evidence_item_ids,
+        "section_id": first_section.get("section_id"),
+        "relationship": "document_identity_heading",
+    }]
+
 def _field_candidates(
     document: dict[str, Any],
     question: str,
@@ -392,7 +488,12 @@ def retrieve_structured_answer(
     expected_type = infer_answer_type(question)
 
     all_candidates = _deduplicate(
-        _field_candidates(
+        _heading_identity_candidates(
+            document,
+            question,
+            expected_type,
+        )
+        + _field_candidates(
             document,
             question,
             expected_type,
