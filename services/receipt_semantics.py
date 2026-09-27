@@ -12,6 +12,7 @@ from services.receipt_value_normalization import normalize_receipt_value
 from services.receipt_item_rows import extract_receipt_item_rows
 from services.receipt_table_evidence import extract_bare_receipt_table
 from services.receipt_standalone_metadata import standalone_receipt_metadata
+from services.receipt_consistency import assess_receipt_consistency
 
 
 def _clean(value: Any) -> str:
@@ -177,10 +178,12 @@ def infer_receipt_semantics(document: dict[str, Any]) -> dict[str, Any] | None:
             for candidate in entry["candidates"]:
                 candidate.update(normalize_receipt_value(key, candidate["observed_value"]))
     item_rows = table_receipt if table_receipt is not None else extract_receipt_item_rows(document.get("records", []))
-    return {
+    result = {
         "status": "receipt_candidate",
         "semantic_verified": False,
         "fields": interpreted,
         "items": item_rows["items"],
         "ambiguous_item_rows": item_rows["ambiguous_rows"],
     }
+    result["consistency_checks"] = assess_receipt_consistency(result)
+    return result
