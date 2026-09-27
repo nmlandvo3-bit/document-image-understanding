@@ -127,6 +127,11 @@ class DocumentUnderstandingApp:
         self.qa_request_counter = 0
         self.qa_active_request = None
 
+        # Local corpus Q&A uses saved OCR scans and never calls Groq.
+        self.corpus_running = False
+        self.corpus_request_counter = 0
+        self.corpus_active_request = None
+
 
         # =====================================================================
         # START
@@ -369,11 +374,15 @@ class DocumentUnderstandingApp:
             text="Document Q&A",
         )
 
+        self.corpus_mode = ttk.Frame(self.mode_tabs)
+        self.mode_tabs.add(self.corpus_mode, text="Corpus Q&A (local)")
+
         self.create_single_mode()
 
         self.create_batch_mode()
 
         self.create_document_qa_mode()
+        self.create_corpus_qa_mode()
 
 
     # =========================================================================
@@ -1462,6 +1471,226 @@ class DocumentUnderstandingApp:
             side="right",
             fill="y",
         )
+
+
+    # =========================================================================
+    # LOCAL CORPUS Q&A
+    # =========================================================================
+
+    def create_corpus_qa_mode(self) -> None:
+        container = ttk.Frame(self.corpus_mode, padding=15)
+        container.pack(fill="both", expand=True)
+
+        intro = ttk.LabelFrame(container, text="Saved scan corpus", padding=12)
+        intro.pack(fill="x", pady=(0, 10))
+        ttk.Label(
+            intro,
+            text=(
+                "Ask supported questions across processed scans. Answers are built "
+                "locally from saved OCR JSON; generated structure is unverified. "
+                "This tab does not call OCR, Groq, or the network."
+            ),
+            wraplength=1000,
+            justify="left",
+        ).pack(anchor="w")
+
+        scope = ttk.Frame(container)
+        scope.pack(fill="x", pady=(0, 10))
+        self.corpus_root_var = tk.StringVar(value=str(SINGLE_OUTPUT_ROOT))
+        ttk.Label(scope, text="Processed scans:").pack(side="left", padx=(0, 8))
+        ttk.Label(scope, textvariable=self.corpus_root_var, wraplength=700).pack(
+            side="left", fill="x", expand=True
+        )
+        self.corpus_browse_button = ttk.Button(
+            scope, text="Choose folder", command=self.choose_corpus_root
+        )
+        self.corpus_browse_button.pack(side="right", padx=4)
+
+        question_frame = ttk.LabelFrame(container, text="Corpus question", padding=12)
+        question_frame.pack(fill="x", pady=(0, 10))
+        self.corpus_question_var = tk.StringVar()
+        self.corpus_question_entry = ttk.Entry(
+            question_frame, textvariable=self.corpus_question_var
+        )
+        self.corpus_question_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.corpus_question_entry.bind("<Return>", self.start_corpus_question)
+        self.corpus_question_entry.bind(
+            "<KeyRelease>", self.corpus_question_edited, add="+"
+        )
+        self.corpus_ask_button = ttk.Button(
+            question_frame, text="Ask Corpus", command=self.start_corpus_question
+        )
+        self.corpus_ask_button.pack(side="left", padx=4)
+        self.corpus_clear_button = ttk.Button(
+            question_frame, text="Clear", command=self.clear_corpus_question
+        )
+        self.corpus_clear_button.pack(side="left", padx=4)
+
+        status = ttk.Frame(container)
+        status.pack(fill="x", pady=(0, 10))
+        self.corpus_status_var = tk.StringVar(value="Ready. Local saved scans only.")
+        ttk.Label(status, textvariable=self.corpus_status_var).pack(
+            side="left", fill="x", expand=True
+        )
+        self.corpus_progress = ttk.Progressbar(
+            status, mode="indeterminate", length=180
+        )
+        self.corpus_progress.pack(side="right")
+
+        panes = ttk.Panedwindow(container, orient="vertical")
+        panes.pack(fill="both", expand=True)
+        answer_frame = ttk.LabelFrame(panes, text="Answer", padding=10)
+        evidence_frame = ttk.LabelFrame(panes, text="OCR evidence", padding=10)
+        panes.add(answer_frame, weight=2)
+        panes.add(evidence_frame, weight=1)
+        self.corpus_answer_text = tk.Text(
+            answer_frame, wrap="word", font=("Segoe UI", 11), height=10
+        )
+        answer_scroll = ttk.Scrollbar(
+            answer_frame, orient="vertical", command=self.corpus_answer_text.yview
+        )
+        self.corpus_answer_text.configure(yscrollcommand=answer_scroll.set)
+        self.corpus_answer_text.pack(side="left", fill="both", expand=True)
+        answer_scroll.pack(side="right", fill="y")
+        self.corpus_evidence_text = tk.Text(
+            evidence_frame, wrap="word", font=("Consolas", 10), height=8
+        )
+        evidence_scroll = ttk.Scrollbar(
+            evidence_frame, orient="vertical", command=self.corpus_evidence_text.yview
+        )
+        self.corpus_evidence_text.configure(yscrollcommand=evidence_scroll.set)
+        self.corpus_evidence_text.pack(side="left", fill="both", expand=True)
+        evidence_scroll.pack(side="right", fill="y")
+
+    def choose_corpus_root(self) -> None:
+        if self.corpus_running:
+            return
+        selected = filedialog.askdirectory(
+            title="Select folder containing processed scans",
+            initialdir=self.corpus_root_var.get(),
+        )
+        if selected:
+            self.corpus_root_var.set(str(Path(selected).resolve()))
+            self.clear_corpus_question()
+            self.corpus_status_var.set("Corpus folder changed. Ready to ask.")
+
+    def corpus_question_edited(self, event=None) -> None:
+        if self.corpus_running:
+            return
+        self.corpus_answer_text.delete("1.0", tk.END)
+        self.corpus_evidence_text.delete("1.0", tk.END)
+        self.corpus_status_var.set("Question changed. Click Ask Corpus for a new answer.")
+
+    def clear_corpus_question(self) -> None:
+        if self.corpus_running:
+            return
+        self.corpus_question_var.set("")
+        self.corpus_answer_text.delete("1.0", tk.END)
+        self.corpus_evidence_text.delete("1.0", tk.END)
+        self.corpus_status_var.set("Ready. Local saved scans only.")
+        self.corpus_question_entry.focus_set()
+
+    def start_corpus_question(self, event=None) -> None:
+        if self.corpus_running:
+            return
+        question = self.corpus_question_var.get().strip()
+        if not question:
+            messagebox.showinfo("Corpus Q&A", "Please enter a question first.")
+            return
+        root = Path(self.corpus_root_var.get()).resolve()
+        self.corpus_running = True
+        self.corpus_request_counter += 1
+        request_id = self.corpus_request_counter
+        self.corpus_active_request = (request_id, question, root)
+        for widget in (
+            self.corpus_ask_button, self.corpus_clear_button,
+            self.corpus_browse_button, self.corpus_question_entry,
+        ):
+            widget.configure(state="disabled")
+        self.corpus_progress.start(10)
+        self.corpus_status_var.set("Building local corpus and retrieving evidence...")
+        self.corpus_answer_text.delete("1.0", tk.END)
+        self.corpus_evidence_text.delete("1.0", tk.END)
+        self.corpus_answer_text.insert(tk.END, "Working...")
+        threading.Thread(
+            target=self.process_corpus_question,
+            args=(question, root, request_id),
+            daemon=True,
+        ).start()
+
+    def process_corpus_question(
+        self, question: str, root: Path, request_id: int
+    ) -> None:
+        try:
+            from services.processed_scan_corpus import load_processed_scan_corpus
+            from services.corpus_question_router import answer_corpus_question
+
+            start = time.perf_counter()
+            corpus = load_processed_scan_corpus(root)
+            result = answer_corpus_question(corpus, question)
+            elapsed = time.perf_counter() - start
+            self.root.after(
+                0,
+                lambda response=result, seconds=elapsed, rid=request_id:
+                    self.corpus_question_complete(response, seconds, rid),
+            )
+        except Exception as error:
+            message = str(error)
+            logger.exception("Local corpus Q&A failed.")
+            self.root.after(
+                0,
+                lambda detail=message, rid=request_id:
+                    self.corpus_question_failed(detail, rid),
+            )
+
+    def corpus_question_complete(
+        self, result: dict, elapsed: float, request_id: int
+    ) -> None:
+        expected = self.corpus_active_request
+        if expected is None or expected[0] != request_id:
+            return
+        _, question, root = expected
+        if (self.corpus_question_var.get().strip() != question
+                or Path(self.corpus_root_var.get()).resolve() != root):
+            self.corpus_question_failed("Question or folder changed during processing.", request_id)
+            return
+        from services.corpus_qa_presentation import present_corpus_answer
+
+        answer, evidence = present_corpus_answer(result)
+        self.corpus_active_request = None
+        self.corpus_running = False
+        self.corpus_progress.stop()
+        for widget in (
+            self.corpus_ask_button, self.corpus_clear_button,
+            self.corpus_browse_button, self.corpus_question_entry,
+        ):
+            widget.configure(state="normal")
+        self.corpus_answer_text.delete("1.0", tk.END)
+        self.corpus_answer_text.insert(tk.END, answer)
+        self.corpus_evidence_text.delete("1.0", tk.END)
+        self.corpus_evidence_text.insert(tk.END, evidence)
+        self.corpus_status_var.set(
+            f"Local result: {result.get('status', '-')} ({elapsed:.2f}s)"
+        )
+        self.corpus_question_entry.focus_set()
+
+    def corpus_question_failed(self, detail: str, request_id: int) -> None:
+        if (self.corpus_active_request is None
+                or self.corpus_active_request[0] != request_id):
+            return
+        self.corpus_active_request = None
+        self.corpus_running = False
+        self.corpus_progress.stop()
+        for widget in (
+            self.corpus_ask_button, self.corpus_clear_button,
+            self.corpus_browse_button, self.corpus_question_entry,
+        ):
+            widget.configure(state="normal")
+        self.corpus_answer_text.delete("1.0", tk.END)
+        self.corpus_answer_text.insert(tk.END, "The local corpus question could not be completed.")
+        self.corpus_evidence_text.delete("1.0", tk.END)
+        self.corpus_status_var.set("Local corpus Q&A failed")
+        messagebox.showerror("Corpus Q&A Error", detail)
 
 
     def get_qa_service(self, document_path=None):
