@@ -375,7 +375,7 @@ class DocumentUnderstandingApp:
         )
 
         self.corpus_mode = ttk.Frame(self.mode_tabs)
-        self.mode_tabs.add(self.corpus_mode, text="Corpus Q&A (local)")
+        self.mode_tabs.add(self.corpus_mode, text="Corpus Q&A")
 
         self.create_single_mode()
 
@@ -1490,7 +1490,7 @@ class DocumentUnderstandingApp:
                 "Ask supported questions across processed scans. Answers are built "
                 "locally from saved OCR JSON; generated structure is unverified. "
                 "Offline by default. Enable Groq below to send bounded saved OCR "
-                "context for question interpretation and grounded answer wording."
+                "OCR text for model-selected answers with checked citations."
             ),
             wraplength=1000,
             justify="left",
@@ -1510,7 +1510,7 @@ class DocumentUnderstandingApp:
 
         self.corpus_use_groq_var = tk.BooleanVar(value=False)
         self.corpus_groq_toggle = ttk.Checkbutton(
-            container, text="Use Groq for corpus questions (sends OCR context)",
+            container, text="Groq corpus analysis (sends saved corpus OCR text)",
             variable=self.corpus_use_groq_var,
         )
         self.corpus_groq_toggle.pack(anchor="w", pady=(0, 10))
@@ -1620,7 +1620,7 @@ class DocumentUnderstandingApp:
             widget.configure(state="disabled")
         self.corpus_progress.start(10)
         self.corpus_status_var.set(
-            "Interpreting with Groq and retrieving local evidence..." if use_groq
+            "Analyzing corpus OCR with Groq..." if use_groq
             else "Building local corpus and retrieving evidence..."
         )
         self.corpus_answer_text.delete("1.0", tk.END)
@@ -1642,8 +1642,8 @@ class DocumentUnderstandingApp:
             start = time.perf_counter()
             corpus = load_processed_scan_corpus(root)
             if use_groq:
-                from services.corpus_groq_assisted import answer_corpus_question_assisted
-                result = answer_corpus_question_assisted(corpus, question)
+                from services.corpus_groq_assisted import answer_corpus_question_analysis
+                result = answer_corpus_question_analysis(corpus, question)
             else:
                 result = answer_corpus_question(corpus, question)
             elapsed = time.perf_counter() - start
@@ -1840,7 +1840,11 @@ class DocumentUnderstandingApp:
     ) -> None:
         try:
             start_time = time.perf_counter()
-            result = self.get_qa_service(document_path).answer(question)
+            if document_path is not None:
+                from services.document_groq_analysis import answer_selected_document
+                result = answer_selected_document(document_path, question)
+            else:
+                result = self.get_qa_service(document_path).answer(question)
             elapsed = time.perf_counter() - start_time
             self.root.after(
                 0,
@@ -2461,8 +2465,8 @@ class DocumentUnderstandingApp:
         )
         self.clear_document_qa()
         self.qa_status_var.set(
-            "Current scan selected. Q&A uses automatic structured retrieval first, "
-            "then raw OCR fallback when needed; only selected evidence is sent to Groq."
+            "Current scan selected. Groq analyzes this scan's saved OCR text only; "
+            "answer quotes and OCR citations are checked locally."
         )
         self.mode_tabs.select(self.qa_mode)
 

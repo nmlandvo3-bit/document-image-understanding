@@ -13,6 +13,26 @@ def present_corpus_answer(result: dict[str, Any]) -> tuple[str, str]:
     if result.get("interpreted_question"):
         evidence.append(f"Search question: {result['interpreted_question']}")
 
+    if result.get("provider") == "groq_corpus_analysis":
+        evidence.append("Citations and exact quotes checked; relevance and completeness are not verified.")
+        if status == "answered":
+            evidence.append(f"Documents analyzed: {result.get('documents_analyzed')}")
+            for claim in result.get("claims", []):
+                evidence.append(f"\n{claim['document_id']} | {claim['quote']}")
+                evidence.extend(claim["evidence_item_ids"])
+            return result["answer"], "\n".join(evidence)
+        messages = {
+            "request_limit": "Groq rejected the request size or rate. Wait before retrying, or choose a smaller scan folder.",
+            "authentication_failed": "Groq authentication failed. Check your API key and access.",
+            "context_limit": "Corpus exceeds the analysis budget. Choose a smaller scan folder.",
+            "empty_corpus": "No corpus OCR evidence found.",
+            "invalid_corpus": "Duplicate OCR evidence IDs found. No analysis performed.",
+            "model_not_found": "Groq found insufficient evidence to answer.",
+            "model_ambiguous": "Groq reported conflicting evidence. No answer selected.",
+            "analysis_failed": "Groq analysis failed or its evidence validation failed. No answer accepted.",
+        }
+        return messages.get(status, "No answer accepted."), "\n".join(evidence)
+
     if status == "answered" and result.get("answer_type") == "receipt_totals":
         totals = result.get("totals", [])
         if not totals:
