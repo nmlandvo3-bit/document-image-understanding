@@ -1275,8 +1275,8 @@ class DocumentUnderstandingApp:
             intro,
             text=(
                 "Ask questions about a selected unified document. "
-                "Groq interprets the question using bounded OCR and reconstructed "
-                "structure; retrieved evidence is then used for the answer."
+                "The selected model analyzes saved OCR text and returns quoted answers "
+                "with checked citations. Ollama stays local; Groq sends OCR to the cloud."
             ),
             wraplength=1000,
             justify="left",
@@ -1286,9 +1286,8 @@ class DocumentUnderstandingApp:
             intro,
             text=(
                 "Use the demo corpus, load a unified JSON, or choose "
-                "Ask About This Scan after local processing. New scans use automatic "
-                "structure first with raw OCR fallback when needed; generated structure "
-                "remains unverified."
+                "Ask About This Scan after local processing. Selected scans use model OCR "
+                "analysis. The earlier demo service is available with Groq only."
             ),
             wraplength=1000,
             justify="left",
@@ -1327,6 +1326,11 @@ class DocumentUnderstandingApp:
             command=self.choose_qa_document,
         )
         self.qa_load_button.pack(side="right", padx=4)
+
+        self.qa_provider_var = tk.StringVar(value="Ollama (local)")
+        self.qa_provider_combo = ttk.Combobox(container, textvariable=self.qa_provider_var,
+            values=("Ollama (local)", "Groq (cloud)"), state="readonly", width=22)
+        self.qa_provider_combo.pack(anchor="w", pady=(0, 10))
 
         question_frame = ttk.LabelFrame(
             container,
@@ -1383,8 +1387,7 @@ class DocumentUnderstandingApp:
 
         self.qa_status_var = tk.StringVar(
             value=(
-                "Ready. GROQ_API_KEY will be checked when the first "
-                "question is asked."
+                "Ready. Select a scan and provider. Ollama requires no Groq API key."
             )
         )
         ttk.Label(
@@ -1489,7 +1492,7 @@ class DocumentUnderstandingApp:
             text=(
                 "Ask supported questions across processed scans. Answers are built "
                 "locally from saved OCR JSON; generated structure is unverified. "
-                "Offline by default. Enable Groq below to send bounded saved OCR "
+                "Offline by default. Enable model analysis below. Ollama processes OCR locally; "
                 "OCR text for model-selected answers with checked citations."
             ),
             wraplength=1000,
@@ -1510,10 +1513,14 @@ class DocumentUnderstandingApp:
 
         self.corpus_use_groq_var = tk.BooleanVar(value=False)
         self.corpus_groq_toggle = ttk.Checkbutton(
-            container, text="Groq corpus analysis (sends saved corpus OCR text)",
+            container, text="Enable model analysis (off = offline local rules)",
             variable=self.corpus_use_groq_var,
         )
         self.corpus_groq_toggle.pack(anchor="w", pady=(0, 10))
+        self.corpus_provider_var = tk.StringVar(value="Ollama (local)")
+        self.corpus_provider_combo = ttk.Combobox(container, textvariable=self.corpus_provider_var,
+            values=("Ollama (local)", "Groq (cloud)"), state="readonly", width=22)
+        self.corpus_provider_combo.pack(anchor="w", pady=(0, 10))
 
         question_frame = ttk.LabelFrame(container, text="Corpus question", padding=12)
         question_frame.pack(fill="x", pady=(0, 10))
@@ -1608,6 +1615,7 @@ class DocumentUnderstandingApp:
             return
         root = Path(self.corpus_root_var.get()).resolve()
         use_groq = bool(self.corpus_use_groq_var.get())
+        provider = "ollama" if self.corpus_provider_var.get() == "Ollama (local)" else "groq"
         self.corpus_running = True
         self.corpus_request_counter += 1
         request_id = self.corpus_request_counter
@@ -1618,9 +1626,10 @@ class DocumentUnderstandingApp:
             self.corpus_groq_toggle,
         ):
             widget.configure(state="disabled")
+        self.corpus_provider_combo.configure(state="disabled")
         self.corpus_progress.start(10)
         self.corpus_status_var.set(
-            "Analyzing corpus OCR with Groq..." if use_groq
+            f"Analyzing corpus OCR with {provider}..." if use_groq
             else "Building local corpus and retrieving evidence..."
         )
         self.corpus_answer_text.delete("1.0", tk.END)
@@ -1628,12 +1637,12 @@ class DocumentUnderstandingApp:
         self.corpus_answer_text.insert(tk.END, "Working...")
         threading.Thread(
             target=self.process_corpus_question,
-            args=(question, root, request_id, use_groq),
+            args=(question, root, request_id, use_groq, provider),
             daemon=True,
         ).start()
 
     def process_corpus_question(
-        self, question: str, root: Path, request_id: int, use_groq: bool = False
+        self, question: str, root: Path, request_id: int, use_groq: bool = False, provider: str = "groq"
     ) -> None:
         try:
             from services.processed_scan_corpus import load_processed_scan_corpus
@@ -1643,7 +1652,7 @@ class DocumentUnderstandingApp:
             corpus = load_processed_scan_corpus(root)
             if use_groq:
                 from services.corpus_groq_assisted import answer_corpus_question_analysis
-                result = answer_corpus_question_analysis(corpus, question)
+                result = answer_corpus_question_analysis(corpus, question, provider=provider)
             else:
                 result = answer_corpus_question(corpus, question)
             elapsed = time.perf_counter() - start
@@ -1678,6 +1687,7 @@ class DocumentUnderstandingApp:
         answer, evidence = present_corpus_answer(result)
         self.corpus_active_request = None
         self.corpus_running = False
+        self.corpus_provider_combo.configure(state="readonly")
         self.corpus_progress.stop()
         for widget in (
             self.corpus_ask_button, self.corpus_clear_button,
@@ -1690,7 +1700,7 @@ class DocumentUnderstandingApp:
         self.corpus_evidence_text.delete("1.0", tk.END)
         self.corpus_evidence_text.insert(tk.END, evidence)
         self.corpus_status_var.set(
-            f"{'Groq-assisted' if use_groq else 'Local'} result: "
+            f"{result.get('provider', 'Local')} result: "
             f"{result.get('status', '-')} ({elapsed:.2f}s)"
         )
         self.corpus_question_entry.focus_set()
@@ -1701,6 +1711,7 @@ class DocumentUnderstandingApp:
             return
         self.corpus_active_request = None
         self.corpus_running = False
+        self.corpus_provider_combo.configure(state="readonly")
         self.corpus_progress.stop()
         for widget in (
             self.corpus_ask_button, self.corpus_clear_button,
@@ -1807,6 +1818,10 @@ class DocumentUnderstandingApp:
             )
             return
 
+        provider = "ollama" if self.qa_provider_var.get() == "Ollama (local)" else "groq"
+        if self.qa_document_path is None and provider == "ollama":
+            messagebox.showinfo("Select a scan", "Use Ask About This Scan or Load unified JSON for local model analysis.")
+            return
         self.qa_running = True
         self.qa_request_counter += 1
         request_id = self.qa_request_counter
@@ -1816,6 +1831,7 @@ class DocumentUnderstandingApp:
         self.qa_load_button.configure(state="disabled")
         self.qa_demo_button.configure(state="disabled")
         self.qa_question_entry.configure(state="disabled")
+        self.qa_provider_combo.configure(state="disabled")
         self.qa_progress.start(10)
         self.qa_status_var.set(
             "Analyzing document structure and retrieving grounded evidence..."
@@ -1826,7 +1842,7 @@ class DocumentUnderstandingApp:
 
         worker = threading.Thread(
             target=self.process_document_question,
-            args=(question, self.qa_document_path, request_id),
+            args=(question, self.qa_document_path, request_id, provider),
             daemon=True,
         )
         worker.start()
@@ -1837,12 +1853,13 @@ class DocumentUnderstandingApp:
         question: str,
         document_path: Path | None,
         request_id: int,
+        provider: str = "groq",
     ) -> None:
         try:
             start_time = time.perf_counter()
             if document_path is not None:
                 from services.document_groq_analysis import answer_selected_document
-                result = answer_selected_document(document_path, question)
+                result = answer_selected_document(document_path, question, provider=provider)
             else:
                 result = self.get_qa_service(document_path).answer(question)
             elapsed = time.perf_counter() - start_time
@@ -1886,6 +1903,7 @@ class DocumentUnderstandingApp:
         self.qa_question_var.set(asked_question)
         self.qa_active_request = None
         self.qa_running = False
+        self.qa_provider_combo.configure(state="readonly")
         self.qa_progress.stop()
         self.qa_ask_button.configure(state="normal")
         self.qa_clear_button.configure(state="normal")
@@ -1990,6 +2008,7 @@ class DocumentUnderstandingApp:
             return
         self.qa_active_request = None
         self.qa_running = False
+        self.qa_provider_combo.configure(state="readonly")
         self.qa_progress.stop()
         self.qa_ask_button.configure(state="normal")
         self.qa_clear_button.configure(state="normal")
@@ -2465,7 +2484,7 @@ class DocumentUnderstandingApp:
         )
         self.clear_document_qa()
         self.qa_status_var.set(
-            "Current scan selected. Groq analyzes this scan's saved OCR text only; "
+            "Current scan selected. The selected model analyzes this scan's saved OCR text only; "
             "answer quotes and OCR citations are checked locally."
         )
         self.mode_tabs.select(self.qa_mode)

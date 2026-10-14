@@ -1,0 +1,1148 @@
+[
+  {
+    "document_id": "scan_receipt_4c095626a778",
+    "evidence": [
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 1,
+        "text": "NDHU CAMPUS STORE",
+        "bbox": {
+          "x": 96,
+          "y": 48,
+          "width": 466,
+          "height": 34,
+          "x2": 562,
+          "y2": 82
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 2,
+        "text": "No.1, Sec.2, Da Hsueh Rd., Hualien",
+        "bbox": {
+          "x": 108,
+          "y": 101,
+          "width": 443,
+          "height": 24,
+          "x2": 551,
+          "y2": 125
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 3,
+        "text": "TEL 03-890-3000",
+        "bbox": {
+          "x": 230,
+          "y": 132,
+          "width": 199,
+          "height": 26,
+          "x2": 429,
+          "y2": 158
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 4,
+        "text": "2026-09-14",
+        "bbox": {
+          "x": 67,
+          "y": 217,
+          "width": 155,
+          "height": 28,
+          "x2": 222,
+          "y2": 245
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 5,
+        "text": "10:32",
+        "bbox": {
+          "x": 247,
+          "y": 217,
+          "width": 80,
+          "height": 29,
+          "x2": 327,
+          "y2": 246
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 6,
+        "text": "Receipt No. 004512",
+        "bbox": {
+          "x": 65,
+          "y": 259,
+          "width": 278,
+          "height": 30,
+          "x2": 343,
+          "y2": 289
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 7,
+        "text": "Black Tea (L)",
+        "bbox": {
+          "x": 66,
+          "y": 340,
+          "width": 198,
+          "height": 31,
+          "x2": 264,
+          "y2": 371
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 8,
+        "text": "45",
+        "bbox": {
+          "x": 558,
+          "y": 340,
+          "width": 35,
+          "height": 30,
+          "x2": 593,
+          "y2": 370
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 9,
+        "text": "70",
+        "bbox": {
+          "x": 559,
+          "y": 382,
+          "width": 35,
+          "height": 28,
+          "x2": 594,
+          "y2": 410
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 10,
+        "text": "Rice Ball x2",
+        "bbox": {
+          "x": 65,
+          "y": 383,
+          "width": 185,
+          "height": 27,
+          "x2": 250,
+          "y2": 410
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 11,
+        "text": "85",
+        "bbox": {
+          "x": 558,
+          "y": 424,
+          "width": 35,
+          "height": 28,
+          "x2": 593,
+          "y2": 452
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 12,
+        "text": "Notebook A4",
+        "bbox": {
+          "x": 65,
+          "y": 425,
+          "width": 172,
+          "height": 26,
+          "x2": 237,
+          "y2": 451
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 13,
+        "text": "30",
+        "bbox": {
+          "x": 559,
+          "y": 464,
+          "width": 35,
+          "height": 29,
+          "x2": 594,
+          "y2": 493
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 14,
+        "text": "Pen Blue 0.5",
+        "bbox": {
+          "x": 66,
+          "y": 465,
+          "width": 185,
+          "height": 28,
+          "x2": 251,
+          "y2": 493
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 15,
+        "text": "Coffee Latte",
+        "bbox": {
+          "x": 66,
+          "y": 506,
+          "width": 185,
+          "height": 28,
+          "x2": 251,
+          "y2": 534
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 16,
+        "text": "65",
+        "bbox": {
+          "x": 558,
+          "y": 506,
+          "width": 35,
+          "height": 29,
+          "x2": 593,
+          "y2": 535
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 17,
+        "text": "SUBTOTAL",
+        "bbox": {
+          "x": 65,
+          "y": 588,
+          "width": 125,
+          "height": 28,
+          "x2": 190,
+          "y2": 616
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 18,
+        "text": "295",
+        "bbox": {
+          "x": 543,
+          "y": 588,
+          "width": 52,
+          "height": 30,
+          "x2": 595,
+          "y2": 618
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 19,
+        "text": "15",
+        "bbox": {
+          "x": 559,
+          "y": 629,
+          "width": 34,
+          "height": 30,
+          "x2": 593,
+          "y2": 659
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 20,
+        "text": "TAX 5%",
+        "bbox": {
+          "x": 65,
+          "y": 630,
+          "width": 96,
+          "height": 29,
+          "x2": 161,
+          "y2": 659
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 21,
+        "text": "TOTAL",
+        "bbox": {
+          "x": 66,
+          "y": 671,
+          "width": 77,
+          "height": 28,
+          "x2": 143,
+          "y2": 699
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 22,
+        "text": "310",
+        "bbox": {
+          "x": 544,
+          "y": 671,
+          "width": 51,
+          "height": 29,
+          "x2": 595,
+          "y2": 700
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 23,
+        "text": "500",
+        "bbox": {
+          "x": 543,
+          "y": 712,
+          "width": 52,
+          "height": 29,
+          "x2": 595,
+          "y2": 741
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 24,
+        "text": "CASH",
+        "bbox": {
+          "x": 65,
+          "y": 713,
+          "width": 67,
+          "height": 28,
+          "x2": 132,
+          "y2": 741
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 25,
+        "text": "190",
+        "bbox": {
+          "x": 543,
+          "y": 753,
+          "width": 52,
+          "height": 31,
+          "x2": 595,
+          "y2": 784
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 26,
+        "text": "CHANGE",
+        "bbox": {
+          "x": 65,
+          "y": 755,
+          "width": 95,
+          "height": 28,
+          "x2": 160,
+          "y2": 783
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 27,
+        "text": "THANK YOU - Visit Again",
+        "bbox": {
+          "x": 178,
+          "y": 837,
+          "width": 302,
+          "height": 28,
+          "x2": 480,
+          "y2": 865
+        }
+      }
+    ]
+  },
+  {
+    "document_id": "scan_ChatGPT_Image_Sep_24__2026__06_13_58_PM_9276e8e604cc",
+    "evidence": [
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 1,
+        "text": "PAYMENT INFORMATION",
+        "bbox": {
+          "x": 25,
+          "y": 22,
+          "width": 525,
+          "height": 43,
+          "x2": 550,
+          "y2": 65
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 2,
+        "text": "115/09/21",
+        "bbox": {
+          "x": 511,
+          "y": 96,
+          "width": 147,
+          "height": 40,
+          "x2": 658,
+          "y2": 136
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 3,
+        "text": "Payment Date",
+        "bbox": {
+          "x": 26,
+          "y": 100,
+          "width": 216,
+          "height": 43,
+          "x2": 242,
+          "y2": 143
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 4,
+        "text": "15:01:23",
+        "bbox": {
+          "x": 509,
+          "y": 135,
+          "width": 134,
+          "height": 42,
+          "x2": 643,
+          "y2": 177
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 5,
+        "text": "Alternative Date",
+        "bbox": {
+          "x": 27,
+          "y": 209,
+          "width": 250,
+          "height": 38,
+          "x2": 277,
+          "y2": 247
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 6,
+        "text": "115/09/22",
+        "bbox": {
+          "x": 511,
+          "y": 209,
+          "width": 149,
+          "height": 42,
+          "x2": 660,
+          "y2": 251
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 7,
+        "text": "0055",
+        "bbox": {
+          "x": 507,
+          "y": 281,
+          "width": 83,
+          "height": 45,
+          "x2": 590,
+          "y2": 326
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 8,
+        "text": "Reference Number",
+        "bbox": {
+          "x": 24,
+          "y": 282,
+          "width": 285,
+          "height": 40,
+          "x2": 309,
+          "y2": 322
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 9,
+        "text": "0066",
+        "bbox": {
+          "x": 507,
+          "y": 320,
+          "width": 83,
+          "height": 46,
+          "x2": 590,
+          "y2": 366
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 10,
+        "text": "AMOUNT SUMMARY",
+        "bbox": {
+          "x": 26,
+          "y": 436,
+          "width": 416,
+          "height": 40,
+          "x2": 442,
+          "y2": 476
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 11,
+        "text": "295",
+        "bbox": {
+          "x": 504,
+          "y": 504,
+          "width": 68,
+          "height": 51,
+          "x2": 572,
+          "y2": 555
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 12,
+        "text": "SUBTOTAL",
+        "bbox": {
+          "x": 25,
+          "y": 508,
+          "width": 184,
+          "height": 38,
+          "x2": 209,
+          "y2": 546
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 13,
+        "text": "TAX",
+        "bbox": {
+          "x": 19,
+          "y": 570,
+          "width": 86,
+          "height": 51,
+          "x2": 105,
+          "y2": 621
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 14,
+        "text": "15",
+        "bbox": {
+          "x": 504,
+          "y": 574,
+          "width": 52,
+          "height": 51,
+          "x2": 556,
+          "y2": 625
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 15,
+        "text": "TOTAL",
+        "bbox": {
+          "x": 22,
+          "y": 638,
+          "width": 123,
+          "height": 48,
+          "x2": 145,
+          "y2": 686
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 16,
+        "text": "310",
+        "bbox": {
+          "x": 505,
+          "y": 640,
+          "width": 67,
+          "height": 50,
+          "x2": 572,
+          "y2": 690
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 17,
+        "text": "500",
+        "bbox": {
+          "x": 634,
+          "y": 642,
+          "width": 64,
+          "height": 47,
+          "x2": 698,
+          "y2": 689
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 18,
+        "text": "CASH",
+        "bbox": {
+          "x": 23,
+          "y": 706,
+          "width": 102,
+          "height": 49,
+          "x2": 125,
+          "y2": 755
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 19,
+        "text": "500",
+        "bbox": {
+          "x": 505,
+          "y": 708,
+          "width": 67,
+          "height": 51,
+          "x2": 572,
+          "y2": 759
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 20,
+        "text": "190",
+        "bbox": {
+          "x": 504,
+          "y": 776,
+          "width": 68,
+          "height": 50,
+          "x2": 572,
+          "y2": 826
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 21,
+        "text": "CHANGE",
+        "bbox": {
+          "x": 27,
+          "y": 778,
+          "width": 150,
+          "height": 40,
+          "x2": 177,
+          "y2": 818
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 22,
+        "text": "CUSTOMER",
+        "bbox": {
+          "x": 25,
+          "y": 890,
+          "width": 239,
+          "height": 45,
+          "x2": 264,
+          "y2": 935
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 23,
+        "text": "Name",
+        "bbox": {
+          "x": 20,
+          "y": 960,
+          "width": 101,
+          "height": 50,
+          "x2": 121,
+          "y2": 1010
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 24,
+        "text": "Alex Carter",
+        "bbox": {
+          "x": 507,
+          "y": 966,
+          "width": 171,
+          "height": 43,
+          "x2": 678,
+          "y2": 1009
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 25,
+        "text": "Date of Birth",
+        "bbox": {
+          "x": 23,
+          "y": 1033,
+          "width": 195,
+          "height": 42,
+          "x2": 218,
+          "y2": 1075
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 26,
+        "text": "03/14/1992",
+        "bbox": {
+          "x": 508,
+          "y": 1038,
+          "width": 165,
+          "height": 40,
+          "x2": 673,
+          "y2": 1078
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 27,
+        "text": "Card Pick-up Number",
+        "bbox": {
+          "x": 25,
+          "y": 1104,
+          "width": 323,
+          "height": 44,
+          "x2": 348,
+          "y2": 1148
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 28,
+        "text": "0055",
+        "bbox": {
+          "x": 504,
+          "y": 1104,
+          "width": 81,
+          "height": 48,
+          "x2": 585,
+          "y2": 1152
+        }
+      }
+    ]
+  },
+  {
+    "document_id": "scan_supermarket_b79744e73844",
+    "evidence": [
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 1,
+        "text": "FRESH MART",
+        "bbox": {
+          "x": 82,
+          "y": 19,
+          "width": 188,
+          "height": 27,
+          "x2": 270,
+          "y2": 46
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 2,
+        "text": "SUPERMARKET",
+        "bbox": {
+          "x": 64,
+          "y": 47,
+          "width": 224,
+          "height": 30,
+          "x2": 288,
+          "y2": 77
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 3,
+        "text": "457 Oak Street",
+        "bbox": {
+          "x": 110,
+          "y": 77,
+          "width": 132,
+          "height": 25,
+          "x2": 242,
+          "y2": 102
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 4,
+        "text": "Cityville, ST 12345",
+        "bbox": {
+          "x": 97,
+          "y": 100,
+          "width": 159,
+          "height": 21,
+          "x2": 256,
+          "y2": 121
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 5,
+        "text": "DATE: 08/24/2023",
+        "bbox": {
+          "x": 16,
+          "y": 121,
+          "width": 156,
+          "height": 21,
+          "x2": 172,
+          "y2": 142
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 6,
+        "text": "TIME: 14:48",
+        "bbox": {
+          "x": 225,
+          "y": 121,
+          "width": 105,
+          "height": 21,
+          "x2": 330,
+          "y2": 142
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 7,
+        "text": "CASHIER: Jane Smith",
+        "bbox": {
+          "x": 14,
+          "y": 153,
+          "width": 191,
+          "height": 26,
+          "x2": 205,
+          "y2": 179
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 8,
+        "text": "REG: 3",
+        "bbox": {
+          "x": 15,
+          "y": 177,
+          "width": 67,
+          "height": 21,
+          "x2": 82,
+          "y2": 198
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 9,
+        "text": "TRN: 9887",
+        "bbox": {
+          "x": 101,
+          "y": 177,
+          "width": 94,
+          "height": 21,
+          "x2": 195,
+          "y2": 198
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 10,
+        "text": "CUSTOMER: John Doe",
+        "bbox": {
+          "x": 16,
+          "y": 198,
+          "width": 197,
+          "height": 20,
+          "x2": 213,
+          "y2": 218
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 11,
+        "text": "Organic Bananas.",
+        "bbox": {
+          "x": 15,
+          "y": 235,
+          "width": 150,
+          "height": 24,
+          "x2": 165,
+          "y2": 259
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 12,
+        "text": ".$ 2.99",
+        "bbox": {
+          "x": 271,
+          "y": 235,
+          "width": 59,
+          "height": 22,
+          "x2": 330,
+          "y2": 257
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 13,
+        "text": "$3.49",
+        "bbox": {
+          "x": 272,
+          "y": 256,
+          "width": 57,
+          "height": 21,
+          "x2": 329,
+          "y2": 277
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 14,
+        "text": "Whole Milk.",
+        "bbox": {
+          "x": 14,
+          "y": 257,
+          "width": 97,
+          "height": 20,
+          "x2": 111,
+          "y2": 277
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 15,
+        "text": "$2.49",
+        "bbox": {
+          "x": 272,
+          "y": 276,
+          "width": 58,
+          "height": 22,
+          "x2": 330,
+          "y2": 298
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 16,
+        "text": "Whole Wheat Bread.",
+        "bbox": {
+          "x": 15,
+          "y": 277,
+          "width": 171,
+          "height": 21,
+          "x2": 186,
+          "y2": 298
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 17,
+        "text": "Grade A Large Eggs",
+        "bbox": {
+          "x": 15,
+          "y": 298,
+          "width": 172,
+          "height": 24,
+          "x2": 187,
+          "y2": 322
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 18,
+        "text": ".$ 3.99",
+        "bbox": {
+          "x": 271,
+          "y": 298,
+          "width": 59,
+          "height": 22,
+          "x2": 330,
+          "y2": 320
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 19,
+        "text": "Ground Beef.",
+        "bbox": {
+          "x": 16,
+          "y": 319,
+          "width": 110,
+          "height": 19,
+          "x2": 126,
+          "y2": 338
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 20,
+        "text": ".$ 5.99",
+        "bbox": {
+          "x": 271,
+          "y": 319,
+          "width": 59,
+          "height": 21,
+          "x2": 330,
+          "y2": 340
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 21,
+        "text": "SUBTOTAL:",
+        "bbox": {
+          "x": 15,
+          "y": 355,
+          "width": 105,
+          "height": 21,
+          "x2": 120,
+          "y2": 376
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 22,
+        "text": "$ 18.95",
+        "bbox": {
+          "x": 264,
+          "y": 355,
+          "width": 66,
+          "height": 22,
+          "x2": 330,
+          "y2": 377
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 23,
+        "text": "TAX 6% :",
+        "bbox": {
+          "x": 13,
+          "y": 375,
+          "width": 84,
+          "height": 23,
+          "x2": 97,
+          "y2": 398
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 24,
+        "text": "$1.14",
+        "bbox": {
+          "x": 273,
+          "y": 376,
+          "width": 57,
+          "height": 21,
+          "x2": 330,
+          "y2": 397
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 25,
+        "text": "$20.09",
+        "bbox": {
+          "x": 262,
+          "y": 394,
+          "width": 69,
+          "height": 27,
+          "x2": 331,
+          "y2": 421
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 26,
+        "text": "TOTAL:",
+        "bbox": {
+          "x": 14,
+          "y": 396,
+          "width": 68,
+          "height": 22,
+          "x2": 82,
+          "y2": 418
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 27,
+        "text": "PAID: DEBIT CARD",
+        "bbox": {
+          "x": 15,
+          "y": 433,
+          "width": 165,
+          "height": 20,
+          "x2": 180,
+          "y2": 453
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 28,
+        "text": "$20.09",
+        "bbox": {
+          "x": 264,
+          "y": 433,
+          "width": 66,
+          "height": 21,
+          "x2": 330,
+          "y2": 454
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 29,
+        "text": "$0.00",
+        "bbox": {
+          "x": 273,
+          "y": 452,
+          "width": 59,
+          "height": 25,
+          "x2": 332,
+          "y2": 477
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 30,
+        "text": "CHANGE:",
+        "bbox": {
+          "x": 15,
+          "y": 454,
+          "width": 87,
+          "height": 21,
+          "x2": 102,
+          "y2": 475
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 31,
+        "text": "THANK YOU FOR SHOPPING!",
+        "bbox": {
+          "x": 49,
+          "y": 492,
+          "width": 255,
+          "height": 22,
+          "x2": 304,
+          "y2": 514
+        }
+      },
+      {
+        "evidence_type": "ocr_region",
+        "region_id": 32,
+        "text": "ITEMS SOLD: 5",
+        "bbox": {
+          "x": 111,
+          "y": 514,
+          "width": 131,
+          "height": 21,
+          "x2": 242,
+          "y2": 535
+        }
+      }
+    ]
+  }
+]

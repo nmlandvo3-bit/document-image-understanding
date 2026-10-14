@@ -8,13 +8,72 @@ def present_corpus_answer(result: dict[str, Any]) -> tuple[str, str]:
     """Return (answer_text, evidence_text) without treating candidates as verified."""
     status = result.get("status")
     evidence = [f"Status: {status}", "Generated structure is unverified."]
+    if result.get("failure_reason"):
+        evidence.append("Failure reason: " + result["failure_reason"])
     if result.get("provider"):
         evidence.append(f"Answer path: {result['provider']}")
     if result.get("interpreted_question"):
         evidence.append(f"Search question: {result['interpreted_question']}")
 
-    if result.get("provider") == "groq_corpus_analysis":
-        evidence.append("Citations and exact quotes checked; relevance and completeness are not verified.")
+    if result.get("provider") in {"groq_corpus_analysis", "ollama_corpus_analysis"}:
+        evidence.append("Accepted quotes have source citations; OCR and semantic interpretations remain unverified.")
+        if result.get("qa_revision"):
+            evidence.append("Q&A revision: " + result["qa_revision"])
+        if result.get("scope_description"):
+            evidence.append("Requested receipt scope: " + result["scope_description"])
+            evidence.append(f"Loaded corpus: {result['corpus_documents_total']} documents; in requested scope: {result['documents_in_scope']}")
+        if result.get("synthesis_status"):
+            evidence.append("Final synthesis: " + result["synthesis_status"])
+        if result.get("batch_reports"):
+            evidence.append(f"Documents processed: {result.get('documents_inspected', len(result['batch_reports']))}/{result.get('documents_total')}")
+            evidence.append(f"Successful model results: {result.get('documents_analyzed')}/{result.get('documents_total')}")
+            evidence.append("All model results passed: " + str(result.get("coverage_complete")))
+            evidence.extend(f"  {r['document_id']}: {r['status']}" + (f" — {r['failure_reason']}" if r.get("failure_reason") else "") for r in result['batch_reports'])
+        if result.get("receipt_total_listing"):
+            listing = result["receipt_total_listing"]
+            evidence.append("Selection method: local_receipt_total_listing")
+            evidence.append("Model path status: " + result["model_status"])
+            if result.get("model_failure_reason"):
+                evidence.append("Model path failure: " + result["model_failure_reason"])
+            evidence.append("Local receipt list complete: " + str(listing["complete"]))
+            evidence.extend(f"  {r['document_id']}: {r['status']}" for r in listing["reports"])
+            evidence.append("Receipt classification and OCR geometry remain candidate interpretations.")
+            for claim in result.get("claims", []):
+                evidence.append(f"\n{claim['document_id']} | {claim['quote']}")
+                evidence.extend(claim["evidence_item_ids"])
+            prefix = ("LOCAL RECEIPT TOTALS (one printed total per receipt candidate):\n"
+                      if listing["complete"] else "INCOMPLETE LOCAL RECEIPT TOTALS (missing or conflicting totals):\n")
+            return prefix + result["answer"], "\n".join(evidence)
+        if result.get("item_comparison"):
+            comparison = result["item_comparison"]
+            evidence.append("Selection method: " + result["selection_method"])
+            evidence.append("Model returned: " + result.get("model_status", "unknown"))
+            if result.get("model_failure_reason"):
+                evidence.append("Model path failure: " + result["model_failure_reason"])
+            evidence.append("Local item evidence complete: " + str(result.get("local_coverage_complete")))
+            evidence.append(comparison["reason"])
+            evidence.append(comparison.get("price_basis", "Printed item-row prices."))
+            evidence.append("Currency symbols do not establish a verified currency denomination.")
+            for claim in result.get("claims", []):
+                evidence.append(f"\n{claim['document_id']} | {claim['quote']}")
+                evidence.extend(claim["evidence_item_ids"])
+            text = "\n".join(
+                f"{i['document_id']}: {i['name']} — {i['price']} [printed currency: {i['currency_symbol'] or 'unspecified'}]"
+                for i in comparison['items']) or "No complete item comparison available."
+            if status == "comparison_ambiguous":
+                text = "CURRENCY AMBIGUITY: one global winner cannot be established. Candidates by printed currency group:\n" + text
+            elif status == "comparison_incomplete":
+                text = "INCOMPLETE ITEM COMPARISON: " + comparison["reason"]
+            elif result["selection_method"] == "local_item_price_comparison":
+                text = "LOCAL COMPARISON (model answer corrected using OCR item rows):\n" + text
+            return text, "\n".join(evidence)
+        if status == "partial_analysis":
+            for claim in result.get("claims", []):
+                evidence.append(f"\n{claim['document_id']} | {claim['quote']}")
+                evidence.extend(claim['evidence_item_ids'])
+            return ("INCOMPLETE ANALYSIS: document extraction or final synthesis did not complete. "
+                    "The following accepted quotes are only partial results.\n"
+                    + (result.get('answer') or 'No accepted quotes.')), "\n".join(evidence)
         if status == "answered":
             evidence.append(f"Documents analyzed: {result.get('documents_analyzed')}")
             for claim in result.get("claims", []):
@@ -22,14 +81,16 @@ def present_corpus_answer(result: dict[str, Any]) -> tuple[str, str]:
                 evidence.extend(claim["evidence_item_ids"])
             return result["answer"], "\n".join(evidence)
         messages = {
-            "request_limit": "Groq rejected the request size or rate. Wait before retrying, or choose a smaller scan folder.",
+            "local_context_limit": "This document exceeds the local context budget. Waiting will not fix it; use a smaller document or increase the configured context.",
+            "request_limit": "Model request exceeds the size/context budget or rate limit. Choose a smaller scan folder; for rate limits, wait before retrying.",
             "authentication_failed": "Groq authentication failed. Check your API key and access.",
             "context_limit": "Corpus exceeds the analysis budget. Choose a smaller scan folder.",
+            "local_model_unavailable": "Ollama is unavailable or the model is missing. Start Ollama and run ollama pull llama3.1:8b.",
             "empty_corpus": "No corpus OCR evidence found.",
             "invalid_corpus": "Duplicate OCR evidence IDs found. No analysis performed.",
-            "model_not_found": "Groq found insufficient evidence to answer.",
-            "model_ambiguous": "Groq reported conflicting evidence. No answer selected.",
-            "analysis_failed": "Groq analysis failed or its evidence validation failed. No answer accepted.",
+            "model_not_found": "The model found insufficient evidence to answer.",
+            "model_ambiguous": "The model reported conflicting evidence. No answer selected.",
+            "analysis_failed": "Model analysis failed or its evidence validation failed. No answer accepted.",
         }
         return messages.get(status, "No answer accepted."), "\n".join(evidence)
 
