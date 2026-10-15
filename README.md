@@ -99,7 +99,7 @@ The following screenshots were supplied from live Windows application runs on 14
 
 Question: **“List all the total of receipts.”**
 
-![Live application result listing three receipt totals](docs/images/results/receipt-totals.png)
+![Live application result listing three receipt totals](docs/images/gui/receipt-totals.png)
 
 | Receipt | Accepted local total | Original label and amount citations |
 | --- | ---: | --- |
@@ -115,7 +115,7 @@ The request took **20.90 seconds** in this demonstration. All seven documents we
 
 Question: **“What is the cheapest item in all of the receipts?”**
 
-![Live application result with separate cheapest-item currency groups](docs/images/results/cheapest-items.png)
+![Live application result with separate cheapest-item currency groups](docs/images/gui/cheapest-items.png)
 
 | Printed currency group | Selected candidate | Printed row price |
 | --- | --- | ---: |
