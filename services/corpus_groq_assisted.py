@@ -127,7 +127,8 @@ def answer_corpus_question_analysis(index: dict[str, Any], question: str,
                                     max_context_bytes: int = 16000,
                                     provider: str = "groq",
                                     _allow_batch: bool = True,
-                                    _analysis_stage: str = "answer") -> dict[str, Any]:
+                                    _analysis_stage: str = "answer",
+                                    ollama_model: str | None = None) -> dict[str, Any]:
     from services.receipt_qa_context import receipt_total_listing, apply_receipt_total_listing
     from services.receipt_item_qa import named_receipt_scope, item_comparison, apply_item_comparison
     scoped = named_receipt_scope(index, question) if _analysis_stage == "answer" else None
@@ -137,7 +138,7 @@ def answer_corpus_question_analysis(index: dict[str, Any], question: str,
     result = _answer_corpus_question_analysis(
         index, question, client=client, model=model, max_context_bytes=max_context_bytes,
         provider=provider, _allow_batch=_allow_batch, _analysis_stage=_analysis_stage,
-        _total_listing=listing or comparison)
+        _total_listing=listing or comparison, ollama_model=ollama_model)
     if comparison and not result.get("item_comparison"):
         result = apply_item_comparison(result, comparison)
     if result.get("item_comparison"):
@@ -152,7 +153,8 @@ def _answer_corpus_question_analysis(index: dict[str, Any], question: str,
                                     provider: str = "groq",
                                     _allow_batch: bool = True,
                                     _analysis_stage: str = "answer",
-                                    _total_listing: Any = None) -> dict[str, Any]:
+                                    _total_listing: Any = None,
+                                    ollama_model: str | None = None) -> dict[str, Any]:
     """Let either provider select extractive claims from every loaded corpus OCR region.
 
     Quote validation establishes provenance, not relevance or semantic truth.
@@ -168,7 +170,8 @@ def _answer_corpus_question_analysis(index: dict[str, Any], question: str,
     scope_info = ({"scope_description": scope["description"], "corpus_documents_total": source_count,
                    "documents_in_scope": len(index["documents"])} if scope else {})
     if provider == "ollama":
-        model = "llama3.1:8b"
+        from services.ollama_client import resolve_ollama_model
+        model = resolve_ollama_model(ollama_model)
         if client is None:
             from services.ollama_client import OllamaClient
             client = OllamaClient()
@@ -214,7 +217,7 @@ def _answer_corpus_question_analysis(index: dict[str, Any], question: str,
     packet = json.dumps({"question": question, "analysis_stage": _analysis_stage, "documents": documents}, ensure_ascii=False, separators=(",", ":"))
     if len(packet.encode("utf-8")) > max_context_bytes:
         if provider == "ollama" and _allow_batch and len(index.get("documents", [])) > 1:
-            return {**_answer_ollama_batches(index, question, client, max_context_bytes, _total_listing), **scope_info}
+            return {**_answer_ollama_batches(index, question, client, max_context_bytes, _total_listing, model), **scope_info}
         return {**base, "status": "context_limit", "answer": None}
     if not evidence:
         return {**base, "status": "empty_corpus", "answer": None}
@@ -292,7 +295,7 @@ def _answer_corpus_question_analysis(index: dict[str, Any], question: str,
         code = getattr(error, "status_code", None)
         if provider == "ollama" and code == 413:
             if _allow_batch and len(index.get("documents", [])) > 1:
-                return {**_answer_ollama_batches(index, question, client, max_context_bytes, _total_listing), **scope_info}
+                return {**_answer_ollama_batches(index, question, client, max_context_bytes, _total_listing, model), **scope_info}
             return {**base, "status": "local_context_limit", "answer": None}
         if code in {413, 429}:
             return {**base, "status": "request_limit", "answer": None}
@@ -305,19 +308,21 @@ def _answer_corpus_question_analysis(index: dict[str, Any], question: str,
                 "failure_reason": reason[:160]}
 
 
-def _answer_ollama_batches(index, question, client, max_context_bytes, _total_listing=None):
+def _answer_ollama_batches(index, question, client, max_context_bytes, _total_listing=None, model=None):
     """Collect per-document evidence, then ask the model the original question.
 
     No question-word whitelist. Report incomplete extraction or synthesis.
     """
-    base = {"provider": "ollama_corpus_analysis", "model": "llama3.1:8b",
+    from services.ollama_client import resolve_ollama_model
+    model = resolve_ollama_model(model)
+    base = {"provider": "ollama_corpus_analysis", "model": model,
             "semantic_verified": False, "qa_revision":"receipt_qa_107", "answer_type": "corpus_analysis"}
     reports, claims = [], []
     for document in index.get("documents", []):
         result = answer_corpus_question_analysis(
             {"documents": [document]}, question, client=client,
             provider="ollama", max_context_bytes=max_context_bytes, _allow_batch=False,
-            _analysis_stage="document_evidence")
+            _analysis_stage="document_evidence", ollama_model=model)
         reports.append({"document_id": document["document_id"], "status": result["status"],
                         "failure_reason": result.get("failure_reason")})
         if result["status"] == "answered":
@@ -360,7 +365,7 @@ def _answer_ollama_batches(index, question, client, max_context_bytes, _total_li
             selected_documents.append({"document_id": document["document_id"], "evidence": selected_evidence})
     result = answer_corpus_question_analysis(
         {"documents": selected_documents}, question, client=client, provider="ollama",
-        max_context_bytes=max_context_bytes, _allow_batch=False, _analysis_stage="corpus_synthesis")
+        max_context_bytes=max_context_bytes, _allow_batch=False, _analysis_stage="corpus_synthesis", ollama_model=model)
     if result["status"] not in {"answered", "model_not_found", "model_ambiguous"}:
         return {**partial, "synthesis_status": result["status"],
                 "failure_reason": result.get("failure_reason") or "Final evidence synthesis failed or exceeded context"}

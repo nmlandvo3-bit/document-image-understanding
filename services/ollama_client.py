@@ -2,9 +2,20 @@
 from __future__ import annotations
 import json
 import os
+import re
 from types import SimpleNamespace
 from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
+
+DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
+
+
+def resolve_ollama_model(model=None):
+    selected = model if model is not None else os.getenv("DOCUMENT_QA_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+    if not isinstance(selected, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}", selected.strip()):
+        raise ValueError("Set DOCUMENT_QA_OLLAMA_MODEL to an installed Ollama model tag.")
+    return selected.strip()
+
 
 class OllamaError(RuntimeError):
     def __init__(self, message, status_code=None):
@@ -28,7 +39,15 @@ SCHEMA = {
 }
 
 class OllamaClient:
-    def __init__(self, num_ctx=None, timeout=180, transport=None):
+    def __init__(self, num_ctx=None, timeout=None, transport=None):
+        if timeout is None:
+            timeout = float(os.getenv("DOCUMENT_QA_OLLAMA_TIMEOUT_SEC", "180"))
+        if not 5 <= timeout <= 1800:
+            raise ValueError("DOCUMENT_QA_OLLAMA_TIMEOUT_SEC must be between 5 and 1800")
+        thinking = os.getenv("DOCUMENT_QA_OLLAMA_THINK", "default").strip().lower()
+        if thinking not in {"default", "true", "false"}:
+            raise ValueError("DOCUMENT_QA_OLLAMA_THINK must be default, true or false")
+        self.think = None if thinking == "default" else thinking == "true"
         configured = os.getenv("DOCUMENT_QA_OLLAMA_NUM_CTX")
         self.adaptive_context = num_ctx is None and configured is None
         if num_ctx is None:
@@ -50,7 +69,7 @@ class OllamaClient:
                 return json.load(response)
         except HTTPError as error:
             if error.code == 404:
-                raise OllamaError('Local model missing. Run ollama pull llama3.1:8b.', 404) from error
+                raise OllamaError(f"Local model missing: {payload.get('model', 'unknown')}. Check ollama list.", 404) from error
             raise OllamaError('Ollama HTTP request failed.', error.code) from error
         except (URLError, TimeoutError) as error:
             raise OllamaError('Ollama unavailable or timed out. Check the Ollama application.', 503) from error
@@ -70,6 +89,8 @@ class OllamaClient:
         payload = {'model': model, 'messages': messages, 'stream': False,
             'format': SCHEMA, 'options': {'temperature': 0, 'num_ctx': request_ctx,
                 'num_predict': max_completion_tokens}, 'keep_alive': '5m'}
+        if self.think is not None:
+            payload["think"] = self.think
         result = self.transport(payload)
         if result.get('done') is not True:
             raise OllamaError('Incomplete Ollama response.')

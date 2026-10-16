@@ -10,6 +10,8 @@ def present_corpus_answer(result: dict[str, Any]) -> tuple[str, str]:
     evidence = [f"Status: {status}", "Generated structure is unverified."]
     if result.get("failure_reason"):
         evidence.append("Failure reason: " + result["failure_reason"])
+    if result.get("model"):
+        evidence.append("Requested model: " + str(result["model"]))
     if result.get("provider"):
         evidence.append(f"Answer path: {result['provider']}")
     if result.get("interpreted_question"):
@@ -85,7 +87,7 @@ def present_corpus_answer(result: dict[str, Any]) -> tuple[str, str]:
             "request_limit": "Model request exceeds the size/context budget or rate limit. Choose a smaller scan folder; for rate limits, wait before retrying.",
             "authentication_failed": "Groq authentication failed. Check your API key and access.",
             "context_limit": "Corpus exceeds the analysis budget. Choose a smaller scan folder.",
-            "local_model_unavailable": "Ollama is unavailable or the model is missing. Start Ollama and run ollama pull llama3.1:8b.",
+            "local_model_unavailable": "Ollama is unavailable or the requested model is missing. Start Ollama and check ollama list against the requested model shown above.",
             "empty_corpus": "No corpus OCR evidence found.",
             "invalid_corpus": "Duplicate OCR evidence IDs found. No analysis performed.",
             "model_not_found": "The model found insufficient evidence to answer.",
